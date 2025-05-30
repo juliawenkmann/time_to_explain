@@ -8,7 +8,7 @@ Contents:
 2. [Project Structure](#2-project-structure)
 3. [Run the evaluation](#3-run-the-evaluation)
    1. [Prepare datasets](#31-prepare-datasets)
-   2. [Train the TGN model](#32-train-the-tgn-model)
+   2. [Train the TGNN model](#32-train-the-tgn-model)
    3. [Train the PGExplainer model](#33-train-the-pgexplainer-model)
    4. [Run evaluation experiments](#34-run-evaluation-experiments)
    5. [Postprocess the evaluation results](#35-postprocess-the-evaluation-results)
