@@ -215,14 +215,12 @@ if __name__ == '__main__':
                     explainers.append(EvaluationCoDy(tgn_wrapper, selection_policy=sampler,
                                                      candidates_size=args.candidates_size,
                                                      max_steps=args.max_steps, verbose=args.debug,
-                                                     approximate_predictions=not args.no_approximation, alpha=args.alpha,
-                                                     beta=args.beta))
+                                                     approximate_predictions=not args.no_approximation, alpha=args.alpha))
             else:
                 explainers.append(EvaluationCoDy(tgn_wrapper, selection_policy=args.sampler,
                                                  candidates_size=args.candidates_size,
                                                  max_steps=args.max_steps, verbose=args.debug,
-                                                 approximate_predictions=not args.no_approximation, alpha=args.alpha,
-                                                 beta=args.beta))
+                                                 approximate_predictions=not args.no_approximation, alpha=args.alpha))
         case 'irand':
             explainers.append((EvaluationIRandExplainer(tgn_wrapper, candidates_size=args.candidates_size,
                                                         verbose=args.debug,
