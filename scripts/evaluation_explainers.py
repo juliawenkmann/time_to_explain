@@ -222,10 +222,10 @@ class EvaluationCoDy(CoDy, EvaluationExplainer):
 
     def __init__(self, tgnn_wrapper: TGNNWrapper, selection_policy: str = 'recent', max_steps: int = 300,
                  candidates_size: int = 64, verbose: bool = False, approximate_predictions: bool = True,
-                 alpha: float = 2.0, beta: float = 1.0):
+                 alpha: float = 2/3):
         CoDy.__init__(self, tgnn_wrapper=tgnn_wrapper, selection_policy=selection_policy,
                       candidates_size=candidates_size, verbose=verbose, max_steps=max_steps,
-                      approximate_predictions=approximate_predictions, alpha=alpha, beta=beta)
+                      approximate_predictions=approximate_predictions, alpha=alpha)
         EvaluationExplainer.__init__(self, tgnn_wrapper=tgnn_wrapper, selection_policy=selection_policy,
                                      candidates_size=candidates_size, sample_size=candidates_size, verbose=verbose,
                                      approximate_predictions=approximate_predictions)
@@ -280,7 +280,7 @@ class EvaluationCoDy(CoDy, EvaluationExplainer):
         skip_search = False
         max_depth = sys.maxsize
         root_node = CoDyTreeNode(explained_event_id, parent=None, sampling_rank=0,
-                                 original_prediction=original_prediction, alpha=self.alpha, beta=self.beta)
+                                 original_prediction=original_prediction, alpha=self.alpha)
         self._expand_node(explained_event_id, root_node, original_prediction, sampler)
 
         if type(sampler) is LocalEventImpactSelectionPolicy:
