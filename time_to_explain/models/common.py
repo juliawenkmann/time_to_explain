@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 import torch
 
-from cody.implementations.tgn import TGNWrapper, to_data_object
-from cody.implementations.ttgn import TTGNWrapper
-from cody.implementations.tgat import TGATWrapper
+from time_to_explain.models.adapter.tgn import TGNWrapper, to_data_object
+from time_to_explain.models.adapter.ttgn import TTGNWrapper
+from time_to_explain.models.adapter.tgat import TGATWrapper
 from time_to_explain.data.data import ContinuousTimeDynamicGraphDataset, TrainTestDatasetParameters
 from TGN.model.tgn import TGN
 from TGN.utils.utils import get_neighbor_finder

@@ -1,7 +1,13 @@
 import argparse
 import os
 
-from common import (add_dataset_arguments, create_tgn_wrapper_from_args, create_tgnn_wrapper_from_args, add_wrapper_model_arguments,
+
+import os, sys
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from time_to_explain.models.common import (add_dataset_arguments, create_tgn_wrapper_from_args, create_tgnn_wrapper_from_args, add_wrapper_model_arguments,
                     add_model_training_arguments, parse_args)
 
 if __name__ == '__main__':

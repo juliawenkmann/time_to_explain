@@ -1,6 +1,12 @@
 import pandas as pd
 import numpy as np
-from cody.constants import COL_NODE_I, COL_NODE_U, COL_TIMESTAMP, COL_ID, COL_STATE, COL_SUBGRAPH_DISTANCE
+
+COL_NODE_I = 'item_id'
+COL_NODE_U = 'user_id'
+COL_TIMESTAMP = 'timestamp'
+COL_STATE = 'state_label'
+COL_ID = 'idx'
+
 from dataclasses import dataclass
 
 
