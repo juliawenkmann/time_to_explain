@@ -1,7 +1,7 @@
 import numpy as np
 import torch
-from .tgn import TGNWrapper, to_data_object
-from .utils import ProgressBar
+from time_to_explain.adapter.tgn import TGNWrapper, to_data_object
+from time_to_explain.utils import ProgressBar
 from TGN.model.tgn import TGN
 from time_to_explain.data.data import BatchData, ContinuousTimeDynamicGraphDataset
 from submodules.tgn.TGN.utils.utils import get_neighbor_finder

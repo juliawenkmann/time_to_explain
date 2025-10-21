@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from time_to_explain.data.data import BatchData, ContinuousTimeDynamicGraphDataset
-from .utils import ProgressBar
+from time_to_explain.utils.utils import ProgressBar
 
 
 class TGNNWrapper:
