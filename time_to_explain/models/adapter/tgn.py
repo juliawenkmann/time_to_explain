@@ -7,10 +7,10 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from .connector import TGNNWrapper
-from .constants import COL_TIMESTAMP, COL_NODE_I, COL_NODE_U
+from time_to_explain.models.adapter.connector import TGNNWrapper
+from time_to_explain.utils.constants import COL_TIMESTAMP, COL_NODE_I, COL_NODE_U
 from time_to_explain.data.data import BatchData, ContinuousTimeDynamicGraphDataset
-from .utils import ProgressBar, construct_model_path
+from time_to_explain.utils.utils import ProgressBar, construct_model_path
 from TGN.evaluation.evaluation import eval_edge_prediction
 from TGN.model.tgn import TGN
 from TGN.utils.data_processing import compute_time_statistics, Data
