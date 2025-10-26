@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "time-to-explain"
+version = "0.1.0"
+description = "Benchmark and tooling for explainability of temporal graph neural networks."
+requires-python = ">=3.9"
+readme = "README.md"
+authors = [{ name = "Julia Wenkmann" }]
+license = { text = "MIT" }
+
+# --- Main dependencies (no torch here to stay CUDA-agnostic)
+dependencies = [
+  "numpy>=1.23",
+  "scipy>=1.9",
+  "pandas>=1.5",
+  "networkx>=2.8",
+  "tqdm>=4.66",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Development tools
+dev = [
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
+  "ruff>=0.5",
+  "black>=24.0",
+  "mypy>=1.6",
+]
+
+# Visualization / reporting
+report = [
+  "matplotlib>=3.7",
+  "seaborn>=0.12",
+]
+
+# Generic XAI utilities
+xai = [
+  "captum>=0.7",
+]
+
+# Optional: documentation build
+docs = [
+  "sphinx>=7.2",
+  "furo>=2024.0.0",
+]
+
+# --- CLI scripts for easy usage
+[project.scripts]
+gxai-setup = "time_to_explain.tools.setup:main"
+gxai-install-thirdparty = "time_to_explain.tools.install_third_party:main"
+gxai-train-tgn = "time_to_explain.models.train_tgnn:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["time_to_explain*"]
+
+# --- Code style tools
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

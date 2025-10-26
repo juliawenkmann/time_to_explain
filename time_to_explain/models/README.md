@@ -5,6 +5,12 @@ Next, a TGNN model is trained for each dataset. To do the training run the follo
 
 ```shell
 bash train_tgnn_model.bash MODEL-TYPE DATASET-NAME --bipartite
+
+```
+e.g.:
+
+```shell
+bash time_to_explain/models/train_tgnn_model.bash TGN wikipedia --bipartite
 ```
 
 Replace ``MODEL-TYPE`` with the type of the model you want to evaluate, e.g., 'TGAT' or 'TGN'.
