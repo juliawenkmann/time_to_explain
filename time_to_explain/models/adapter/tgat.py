@@ -1,10 +1,10 @@
 import numpy as np
 import torch
-from time_to_explain.adapter.tgn import TGNWrapper, to_data_object
-from time_to_explain.utils import ProgressBar
-from TGN.model.tgn import TGN
 from time_to_explain.data.data import BatchData, ContinuousTimeDynamicGraphDataset
-from submodules.tgn.TGN.utils.utils import get_neighbor_finder
+from time_to_explain.models.adapter.tgn import TGNWrapper, to_data_object
+from time_to_explain.setup.utils import ProgressBar
+from submodules.models.tgn.model.tgn import TGN
+from submodules.models.tgn.utils.utils import get_neighbor_finder
 
 
 class TGATWrapper(TGNWrapper):
@@ -27,7 +27,7 @@ class TGATWrapper(TGNWrapper):
 
     def compute_edge_probabilities_for_subgraph(self, event_id, edges_to_drop: np.ndarray,
                                                 result_as_logit: bool = False,
-                                                event_ids_to_rollout: np.ndarray = None) -> (torch.Tensor, torch.Tensor):
+                                                event_ids_to_rollout: np.ndarray = None):
         # Insert a new neighborhood finder so that the model does not consider dropped edges
         original_ngh_finder = self.model.neighbor_finder
         self.model.set_neighbor_finder(get_neighbor_finder(to_data_object(self.dataset, edges_to_drop=edges_to_drop),

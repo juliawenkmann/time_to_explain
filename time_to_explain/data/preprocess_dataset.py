@@ -8,7 +8,7 @@ COL_NODE_U = 'user_id'
 COL_TIMESTAMP = 'timestamp'
 COL_STATE = 'state_label'
 COL_ID = 'idx'
-
+COL_SUBGRAPH_DISTANCE = 'hop_distance'
 
 
 def _check_required_columns(dataset: pd.DataFrame) -> None:

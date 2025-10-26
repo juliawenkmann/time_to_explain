@@ -1,0 +1,32 @@
+Metadata-Version: 2.4
+Name: time-to-explain
+Version: 0.1.0
+Summary: Benchmark and tooling for explainability of temporal graph neural networks.
+Author: Julia Wenkmann
+License: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.23
+Requires-Dist: scipy>=1.9
+Requires-Dist: pandas>=1.5
+Requires-Dist: networkx>=2.8
+Requires-Dist: tqdm>=4.66
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0; extra == "dev"
+Requires-Dist: ruff>=0.5; extra == "dev"
+Requires-Dist: black>=24.0; extra == "dev"
+Requires-Dist: mypy>=1.6; extra == "dev"
+Provides-Extra: report
+Requires-Dist: matplotlib>=3.7; extra == "report"
+Requires-Dist: seaborn>=0.12; extra == "report"
+Provides-Extra: xai
+Requires-Dist: captum>=0.7; extra == "xai"
+Provides-Extra: docs
+Requires-Dist: sphinx>=7.2; extra == "docs"
+Requires-Dist: furo>=2024.0.0; extra == "docs"
+Dynamic: license-file
+
+# Temporal Graph XAI Benchmark
