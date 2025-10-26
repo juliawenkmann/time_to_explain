@@ -8,13 +8,13 @@ import numpy as np
 import torch
 
 from time_to_explain.models.adapter.connector import TGNNWrapper
-from time_to_explain.utils.constants import COL_TIMESTAMP, COL_NODE_I, COL_NODE_U
+from time_to_explain.setup.constants import COL_TIMESTAMP, COL_NODE_I, COL_NODE_U
 from time_to_explain.data.data import BatchData, ContinuousTimeDynamicGraphDataset
-from time_to_explain.utils.utils import ProgressBar, construct_model_path
-from TGN.evaluation.evaluation import eval_edge_prediction
-from TGN.model.tgn import TGN
-from TGN.utils.data_processing import compute_time_statistics, Data
-from TGN.utils.utils import EarlyStopMonitor, RandEdgeSampler, get_neighbor_finder
+from time_to_explain.setup.utils import ProgressBar, construct_model_path
+from submodules.models.tgn.evaluation.evaluation import eval_edge_prediction
+from submodules.models.tgn.model.tgn import TGN
+from submodules.models.tgn.utils.data_processing import compute_time_statistics, Data
+from submodules.models.tgn.utils.utils import EarlyStopMonitor, RandEdgeSampler, get_neighbor_finder
 
 
 def to_data_object(dataset: ContinuousTimeDynamicGraphDataset, edges_to_drop: np.ndarray = None) -> Data:
@@ -29,6 +29,27 @@ def to_data_object(dataset: ContinuousTimeDynamicGraphDataset, edges_to_drop: np
         return Data(dataset.source_node_ids[edge_mask], dataset.target_node_ids[edge_mask],
                     dataset.timestamps[edge_mask], dataset.edge_ids[edge_mask], dataset.labels[edge_mask])
     return Data(dataset.source_node_ids, dataset.target_node_ids, dataset.timestamps, dataset.edge_ids, dataset.labels)
+
+def _unpack_metrics(metrics):
+    """
+    Accept (ap, auc, acc), (ap, auc), or a dict with keys like
+    'ap'/'average_precision', 'auc'/'roc_auc', 'acc'/'accuracy'.
+    Returns: (ap, auc, acc_or_None)
+    """
+    if isinstance(metrics, dict):
+        ap = metrics.get('ap', metrics.get('average_precision'))
+        auc = metrics.get('auc', metrics.get('roc_auc'))
+        acc = metrics.get('acc', metrics.get('accuracy'))
+        return ap, auc, acc
+
+    if isinstance(metrics, (list, tuple)):
+        if len(metrics) >= 3:
+            return metrics[0], metrics[1], metrics[2]
+        if len(metrics) == 2:
+            return metrics[0], metrics[1], None
+
+    # Unexpected shape
+    raise ValueError(f"Unsupported metrics format from eval_edge_prediction: {type(metrics)} -> {metrics}")
 
 
 class TGNWrapper(TGNNWrapper):
@@ -164,8 +185,7 @@ class TGNWrapper(TGNNWrapper):
 
     def compute_edge_probabilities_for_subgraph(self, event_id, edges_to_drop: np.ndarray,
                                                 result_as_logit: bool = False,
-                                                event_ids_to_rollout: np.ndarray = None) -> (
-    torch.Tensor, torch.Tensor):
+                                                event_ids_to_rollout: np.ndarray = None):
         if not self.evaluation_mode:
             self.logger.info('Model not in evaluation mode. Do not use predictions for evaluation purposes!')
         # Insert a new neighborhood finder so that the model does not consider dropped edges
@@ -313,10 +333,15 @@ class TGNWrapper(TGNNWrapper):
             if self.use_memory:
                 train_memory_backup = self.model.memory.backup_memory()
 
-            val_ap, val_auc, val_acc = eval_edge_prediction(model=self.model,
-                                                            negative_edge_sampler=val_random_sampler,
-                                                            data=val_data,
-                                                            n_neighbors=self.n_neighbors)
+            val_metrics = eval_edge_prediction(model=self.model,
+                                   neighbor_finder=self.full_ngh_finder,
+                                   data=self.val_data,
+                                   negative_edge_sampler=self.negative_edge_sampler,
+                                   batch_size=self.batch_size,
+                                   device=self.device)
+            
+            val_ap, val_auc, val_acc = _unpack_metrics(val_metrics)
+
             if self.use_memory:
                 val_memory_backup = self.model.memory.backup_memory()
                 # Restore memory we had at the end of training to be used when validating on new nodes.

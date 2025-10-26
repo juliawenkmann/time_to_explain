@@ -6,8 +6,18 @@ COL_NODE_U = 'user_id'
 COL_TIMESTAMP = 'timestamp'
 COL_STATE = 'state_label'
 COL_ID = 'idx'
+COL_SUBGRAPH_DISTANCE = 'hop_distance'
 
 from dataclasses import dataclass
+import glob
+import os
+import platform
+import sys
+from argparse import Namespace, ArgumentParser
+from typing import Optional
+import numpy as np
+import pandas as pd
+
 
 
 @dataclass
@@ -59,7 +69,7 @@ class ContinuousTimeDynamicGraphDataset:
         return BatchData(self.source_node_ids[start_index:end_index], self.target_node_ids[start_index:end_index],
                          self.timestamps[start_index:end_index], self.edge_ids[start_index:end_index])
 
-    def extract_random_event_ids(self, section: str = 'train') -> [int]:
+    def extract_random_event_ids(self, section: str = 'train'):
         """
         Create a random set of event ids
         @param section: section from which ids should be extracted, options: 'train', 'validation', 'test'
@@ -102,7 +112,7 @@ class SubgraphGenerator:
         self.directed = dataset.directed
         self.all_events = dataset.events
 
-    def _prepare_subgraph(self, base_event_id: int) -> (pd.DataFrame, int):
+    def _prepare_subgraph(self, base_event_id: int):
         subgraph_events = self.all_events.copy()
 
         # Make ids indexed to 0
@@ -211,3 +221,110 @@ class SubgraphGenerator:
             new_nodes_reached = np.concatenate((new_source_nodes_reached, new_nodes_reached))
 
         return np.unique(new_nodes_reached)
+
+
+
+
+
+
+ #######################################################################    HELPERS    #######################################################################
+
+ 
+SAMPLERS = ['random', 'temporal', 'spatio-temporal', 'local-gradient']
+
+
+def parse_args(parser: ArgumentParser) -> Namespace:
+    try:
+        return parser.parse_args()
+    except SystemExit:
+        parser.print_help()
+        sys.exit(0)
+
+
+def add_dataset_arguments(parser: ArgumentParser):
+    parser.add_argument('-d', '--dataset', required=True, type=str, help='Path to the dataset folder')
+    parser.add_argument('--directed', action='store_true', help='Provide if the graph is directed')
+    parser.add_argument('--bipartite', action='store_true', help='Provide if the graph is bipartite')
+
+
+def column_to_int_array(df, column_name):
+    df[column_name] = (df[column_name].str.rstrip(']').str.lstrip('[')
+                       .replace('\n', '').str.split().apply(lambda x: np.array([int(item) for item in x])))
+
+
+def column_to_float_array(df, column_name):
+    df[column_name] = (df[column_name].str.rstrip(']').str.lstrip('[')
+                       .replace('\n', '').str.split().apply(lambda x: np.array([float(item) for item in x])))
+
+
+def create_dataset_from_args(args: Namespace, parameters: TrainTestDatasetParameters | None = None) -> ContinuousTimeDynamicGraphDataset:
+    if parameters is None:
+        parameters = TrainTestDatasetParameters(0.2, 0.6, 0.8, 1000, 500, 500)
+
+    # Get dataset
+    dataset_folder = args.dataset
+
+    events = glob.glob(os.path.join(dataset_folder, '*_data.csv'))
+    edge_features = glob.glob(os.path.join(dataset_folder, '*_edge_features.npy'))
+    node_features = glob.glob(os.path.join(dataset_folder, '*_node_features.npy'))
+
+    name = edge_features[0][:-18]
+    assert len(events) == len(edge_features) == len(node_features) == 1
+    assert name == edge_features[0][:-18] == events[0][:-9]
+
+    if platform.system() == 'Windows':
+        name = name.split('\\')[-1]
+    else:
+        name = name.split('/')[-1]
+    all_event_data = pd.read_csv(events[0])
+    edge_features = np.load(edge_features[0])
+    node_features = np.load(node_features[0])
+
+    return ContinuousTimeDynamicGraphDataset(all_event_data, edge_features, node_features, name,
+                                             directed=args.directed, bipartite=args.bipartite,
+                                             parameters=parameters)
+
+
+def create_dataset(
+    dataset_dir: str | os.PathLike,
+    *,
+    directed: bool = False,
+    bipartite: bool = False,
+    parameters: Optional[TrainTestDatasetParameters] = None,
+) -> ContinuousTimeDynamicGraphDataset:
+    """
+    Build ContinuousTimeDynamicGraphDataset directly from variables.
+
+    Expects within dataset_dir:
+      - *_data.csv
+      - *_edge_features.npy
+      - *_node_features.npy
+    """
+    if parameters is None:
+        parameters = TrainTestDatasetParameters(0.2, 0.6, 0.8, 1000, 500, 500)
+
+    dataset_folder = str(dataset_dir)
+
+    events = glob.glob(os.path.join(dataset_folder, '*_data.csv'))
+    edge_features = glob.glob(os.path.join(dataset_folder, '*_edge_features.npy'))
+    node_features = glob.glob(os.path.join(dataset_folder, '*_node_features.npy'))
+
+    assert len(events) == len(edge_features) == len(node_features) == 1, \
+        f"Expected exactly one triplet of files, got: {events}, {edge_features}, {node_features}"
+
+    name = edge_features[0][:-18]
+    assert name == events[0][:-9], "Base names for dataset files do not match."
+
+    if platform.system() == 'Windows':
+        name = name.split('\\')[-1]
+    else:
+        name = name.split('/')[-1]
+
+    all_event_data = pd.read_csv(events[0])
+    edge_features_arr = np.load(edge_features[0])
+    node_features_arr = np.load(node_features[0])
+
+    return ContinuousTimeDynamicGraphDataset(
+        all_event_data, edge_features_arr, node_features_arr, name,
+        directed=directed, bipartite=bipartite, parameters=parameters
+    )

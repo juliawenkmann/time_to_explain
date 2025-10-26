@@ -1,3 +1,9 @@
 [submodule "coDy"]
 	path = third_party/explainers/coDy
 	url = git@github.com:juliawenkmann/CoDy.git
+[submodule "third_party/models/tgn"]
+	path = third_party/models/tgn
+	url = git@github.com:juliawenkmann/tgn.git
+[submodule "third_party/explainers/TempME"]
+	path = third_party/explainers/TempME
+	url = git@github.com:juliawenkmann/TempME.git

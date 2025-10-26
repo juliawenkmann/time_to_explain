@@ -13,13 +13,20 @@ from time_to_explain.models.adapter.tgn import TGNWrapper, to_data_object
 from time_to_explain.models.adapter.ttgn import TTGNWrapper
 from time_to_explain.models.adapter.tgat import TGATWrapper
 from time_to_explain.data.data import ContinuousTimeDynamicGraphDataset, TrainTestDatasetParameters
-from TGN.model.tgn import TGN
-from TGN.utils.utils import get_neighbor_finder
-from TTGN.model.tgn import TGN as TTGN
-from TTGN.utils.utils import get_neighbor_finder as tget_neighbor_finder
+from submodules.models.tgn.model.tgn import TGN
+from submodules.models.tgn.utils.utils import get_neighbor_finder
+from submodules.models.tgn.model.tgn import TGN as TTGN
+from submodules.models.tgn.utils.utils import get_neighbor_finder as tget_neighbor_finder
 
 SAMPLERS = ['random', 'temporal', 'spatio-temporal', 'local-gradient']
 
+
+
+
+
+# -----------------------
+# Arg parsing
+# -----------------------
 
 def parse_args(parser: ArgumentParser) -> Namespace:
     try:
@@ -38,7 +45,14 @@ def add_dataset_arguments(parser: ArgumentParser):
 def add_wrapper_model_arguments(parser: ArgumentParser):
     parser.add_argument('-m', '--model', default=None, type=str,
                         help='Path to the model checkpoint to use')
-    parser.add_argument('--cuda', action='store_true', help='Use cuda for GPU utilization')
+
+    # Legacy flag retained for compatibility; will gracefully fall back if CUDA isn't available
+    parser.add_argument('--cuda', action='store_true', help='Use cuda for GPU utilization (falls back if unavailable)')
+
+    # New, explicit device selection (recommended)
+    parser.add_argument('--device', default='auto', choices=['auto', 'cpu', 'cuda', 'mps'],
+                        help='Compute device preference (auto -> cuda/mps/cpu fallback)')
+
     parser.add_argument('--update_memory_at_start', action='store_true',
                         help='Provide if the memory should be updated at start')
     parser.add_argument('--type', default='TGN', required=True, choices=['TGN', 'TGAT'])
@@ -51,6 +65,10 @@ def add_model_training_arguments(parser: ArgumentParser):
                         help='Path to the directory where the model checkpoints, final model and results are saved to.')
     parser.add_argument('-e', '--epochs', type=int, default=50, help='Number of epochs to train the model for.')
 
+
+# -----------------------
+# Data helpers
+# -----------------------
 
 def column_to_int_array(df, column_name):
     df[column_name] = (df[column_name].str.rstrip(']').str.lstrip('[')
@@ -91,21 +109,22 @@ def create_dataset_from_args(args: Namespace, parameters: TrainTestDatasetParame
                                              parameters=parameters)
 
 
+# -----------------------
+# Wrapper constructors
+# -----------------------
+
 def create_ttgnn_wrapper_from_args(args: Namespace, dataset: ContinuousTimeDynamicGraphDataset | None = None):
     if dataset is None:
         dataset = create_dataset_from_args(args)
 
-    device = 'cpu'
-    if args.cuda:
-        device = 'cuda'
+    dev_str = dev.type  # for wrappers that expect a string
 
     if args.type == 'TGN':
-
         tgn = TTGN(
             neighbor_finder=tget_neighbor_finder(to_data_object(dataset), uniform=False),
             node_features=dataset.node_features,
             edge_features=dataset.edge_features,
-            device=torch.device(device),
+            device=dev,
             use_memory=True,
             memory_update_at_start=False,
             memory_dimension=172,
@@ -123,7 +142,7 @@ def create_ttgnn_wrapper_from_args(args: Namespace, dataset: ContinuousTimeDynam
             neighbor_finder=tget_neighbor_finder(to_data_object(dataset), uniform=False),
             node_features=dataset.node_features,
             edge_features=dataset.edge_features,
-            device=torch.device(device),
+            device=dev,
             use_memory=False,
             memory_update_at_start=False,
             memory_dimension=0,
@@ -140,8 +159,9 @@ def create_ttgnn_wrapper_from_args(args: Namespace, dataset: ContinuousTimeDynam
     else:
         raise NotImplementedError
 
-    tgn.to(device)
-    return TTGNWrapper(tgn, dataset, num_hops=2, model_name=args.type, device=device, n_neighbors=20,
+    tgn.to(dev)
+
+    return TTGNWrapper(tgn, dataset, num_hops=2, model_name=args.type, device=dev_str, n_neighbors=20,
                        explanation_candidates_size=args.candidates_size, batch_size=32, checkpoint_path=args.model,
                        use_memory=tgn.use_memory)
 
@@ -162,15 +182,14 @@ def create_tgn_wrapper_from_args(args: Namespace, dataset: ContinuousTimeDynamic
     if dataset is None:
         dataset = create_dataset_from_args(args)
 
-    device = 'cpu'
-    if args.cuda:
-        device = 'cuda'
+    dev = device_from_args(args)
+    dev_str = dev.type
 
     tgn = TGN(
         neighbor_finder=get_neighbor_finder(to_data_object(dataset), uniform=False),
         node_features=dataset.node_features,
         edge_features=dataset.edge_features,
-        device=torch.device(device),
+        device=dev,
         use_memory=True,
         memory_update_at_start=args.update_memory_at_start,
         memory_dimension=172,
@@ -184,9 +203,9 @@ def create_tgn_wrapper_from_args(args: Namespace, dataset: ContinuousTimeDynamic
         n_neighbors=20
     )
 
-    tgn.to(device)
+    tgn.to(dev)
 
-    return TGNWrapper(tgn, dataset, num_hops=2, model_name='TGN', device=device, n_neighbors=20,
+    return TGNWrapper(tgn, dataset, num_hops=2, model_name='TGN', device=dev_str, n_neighbors=20,
                       batch_size=32, checkpoint_path=args.model)
 
 
@@ -194,15 +213,14 @@ def create_tgat_wrapper_from_args(args: Namespace, dataset: ContinuousTimeDynami
     if dataset is None:
         dataset = create_dataset_from_args(args)
 
-    device = 'cpu'
-    if args.cuda:
-        device = 'cuda'
+    dev = device_from_args(args)
+    dev_str = dev.type
 
     tgn = TGN(
         neighbor_finder=get_neighbor_finder(to_data_object(dataset), uniform=False),
         node_features=dataset.node_features,
         edge_features=dataset.edge_features,
-        device=torch.device(device),
+        device=dev,
         use_memory=False,
         memory_update_at_start=args.update_memory_at_start,
         memory_dimension=0,
@@ -217,11 +235,15 @@ def create_tgat_wrapper_from_args(args: Namespace, dataset: ContinuousTimeDynami
         n_layers=2
     )
 
-    tgn.to(device)
+    tgn.to(dev)
 
-    return TGATWrapper(tgn, dataset, num_hops=2, model_name='TGAT', device=device, n_neighbors=20,
+    return TGATWrapper(tgn, dataset, num_hops=2, model_name='TGAT', device=dev_str, n_neighbors=20,
                        batch_size=32, checkpoint_path=args.model)
 
+
+# -----------------------
+# Misc utilities
+# -----------------------
 
 def get_event_ids_from_file(event_ids_filepath: str | None, logger: logging.Logger,
                             wrong_predictions_only: bool = False, tgn_wrapper: TGNWrapper | TTGNWrapper = None):
@@ -262,7 +284,8 @@ def sample_predictions(tgn_wrapper: TGNWrapper | TTGNWrapper, predictions_correc
             predictions = predictions.detach().cpu().numpy()
             all_predictions.append(predictions)
             event_ids.append(batch_data.edge_ids[batch_start:batch_end])
-            if tgn_wrapper.use_memory:
+            if getattr(tgn_wrapper, "use_memory", False):
+                # avoid graph growing; detach if memory module is present
                 tgn_wrapper.model.memory.detach_memory()
             batch_id += 1
     all_predictions = np.concatenate(all_predictions)

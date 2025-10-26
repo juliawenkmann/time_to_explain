@@ -1,0 +1,4 @@
+[console_scripts]
+gxai-install-thirdparty = time_to_explain.tools.install_third_party:main
+gxai-setup = time_to_explain.tools.setup:main
+gxai-train-tgn = time_to_explain.models.train_tgnn:main
