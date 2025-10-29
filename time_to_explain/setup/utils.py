@@ -1,4 +1,5 @@
 import logging
+import os
 from io import StringIO
 
 from tqdm import tqdm, tqdm_notebook
@@ -12,6 +13,8 @@ def construct_model_path(path_prefix: str, model_name: str, data_name: str, epoc
 
 
 def _is_running_in_notebook() -> bool:
+    if os.getenv('TTE_FORCE_CONSOLE_PROGRESS') == '1':
+        return False
     try:
         shell = IPython.get_ipython().__class__.__name__
         if shell == 'ZMQInteractiveShell':
@@ -29,8 +32,11 @@ class ProgressBar:
     def __init__(self, max_item: int, prefix: str = ''):
         self.running_in_notebook = _is_running_in_notebook()
         if self.running_in_notebook:
-            self.progress_bar = tqdm_notebook(total=max_item, desc=prefix)
-        else:
+            try:
+                self.progress_bar = tqdm_notebook(total=max_item, desc=prefix)
+            except Exception:
+                self.running_in_notebook = False
+        if not self.running_in_notebook:
             self.desc = tqdm(total=0, position=1, bar_format='{desc}')
             self.progress_bar = tqdm(total=max_item, desc=prefix, dynamic_ncols=True, position=0)
         self.inner_progress = None
@@ -60,7 +66,11 @@ class ProgressBar:
         assert self.inner_progress is None, 'Inner progress bar already exists'
         self.inner_current_value = 0
         if self.running_in_notebook:
-            self.inner_progress = tqdm_notebook(total=max_item, desc=prefix)
+            try:
+                self.inner_progress = tqdm_notebook(total=max_item, desc=prefix)
+            except Exception:
+                self.running_in_notebook = False
+                self.inner_progress = tqdm(total=max_item, desc=prefix, position=2, leave=False, dynamic_ncols=True)
         else:
             self.inner_progress = tqdm(total=max_item, desc=prefix, position=2, leave=False, dynamic_ncols=True)
 

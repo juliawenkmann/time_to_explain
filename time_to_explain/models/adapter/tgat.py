@@ -3,8 +3,8 @@ import torch
 from time_to_explain.data.data import BatchData, ContinuousTimeDynamicGraphDataset
 from time_to_explain.models.adapter.tgn import TGNWrapper, to_data_object
 from time_to_explain.setup.utils import ProgressBar
-from submodules.models.tgn.model.tgn import TGN
-from submodules.models.tgn.utils.utils import get_neighbor_finder
+from submodules.models.tgn.TTGN.model.tgn import TGN
+from submodules.models.tgn.TTGN.utils.utils import get_neighbor_finder
 
 
 class TGATWrapper(TGNWrapper):

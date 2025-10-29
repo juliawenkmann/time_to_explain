@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 # -- Your variable-based wrapper factory (adjust if you named it differently)
-from time_to_explain.models.wrapper import create_tgnn_wrapper
+from time_to_explain.models.create_wrapper import create_tgnn_wrapper
 from time_to_explain.models.adapter.tgn import to_data_object  # helper used to build neighbor finder
 
 # PGExplainer bits
@@ -13,7 +13,7 @@ from submodules.explainer.CoDy.cody.embedding import StaticEmbedding
 from submodules.explainer.CoDy.cody.explainer.baseline.pgexplainer import TPGExplainer
 
 # Neighbor finder for eval
-from submodules.models.tgn.utils.utils import get_neighbor_finder
+from submodules.models.tgn.TTGN.utils.utils import get_neighbor_finder
 
 
 def _find_highest_checkpoint(
