@@ -1,9 +1,15 @@
 [submodule "coDy"]
-	path = third_party/explainers/coDy
+	path = submodules/explainer/coDy
 	url = git@github.com:juliawenkmann/CoDy.git
-[submodule "third_party/models/tgn"]
-	path = third_party/models/tgn
+[submodule "submodules/models/tgn"]
+	path = submodules/models/tgn
 	url = git@github.com:juliawenkmann/tgn.git
-[submodule "third_party/explainers/TempME"]
-	path = third_party/explainers/TempME
+[submodule "submodules/explainer/TempME"]
+	path = submodules/explainer/TempME
 	url = git@github.com:juliawenkmann/TempME.git
+[submodule "submodules/explainer/htgexplainer"]
+	path = submodules/explainer/htgexplainer
+	url = git@github.com:juliawenkmann/htgexplainer.git
+[submodule "submodules/explainer/tgnnexlpeiner"]
+	path = submodules/explainer/tgnnexplainer
+	url = git@github.com:juliawenkmann/tgnnexplainer.git
