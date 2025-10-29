@@ -1,0 +1,22 @@
+2025-10-27 11:50:15,227 - root - INFO - Namespace(data='wikipedia', bs=200, prefix='tte', n_degree=10, n_head=2, n_epoch=3, n_layer=1, lr=0.0001, patience=5, n_runs=1, drop_out=0.1, gpu=0, node_dim=100, time_dim=100, backprop_every=1, use_memory=True, embedding_module='graph_attention', message_function='identity', memory_updater='gru', aggregator='last', memory_update_at_end=False, message_dim=100, memory_dim=172, different_new_nodes=False, uniform=False, randomize_features=False, use_destination_embedding_in_message=False, use_source_embedding_in_message=False, dyrep=False)
+2025-10-27 11:50:15,941 - root - INFO - num of training instances: 79202
+2025-10-27 11:50:15,942 - root - INFO - num of batches per epoch: 397
+2025-10-27 11:50:15,943 - root - INFO - start 0 epoch
+2025-10-27 11:50:47,802 - root - INFO - epoch: 0 took 31.86s
+2025-10-27 11:50:47,802 - root - INFO - Epoch mean loss: 0.7851524639790244
+2025-10-27 11:50:47,803 - root - INFO - val auc: 0.9290926846929249, new node val auc: 0.9244126768128466
+2025-10-27 11:50:47,803 - root - INFO - val ap: 0.9339780599548506, new node val ap: 0.9316017848883027
+2025-10-27 11:50:47,824 - root - INFO - start 1 epoch
+2025-10-27 11:51:19,226 - root - INFO - epoch: 1 took 31.41s
+2025-10-27 11:51:19,226 - root - INFO - Epoch mean loss: 0.704802127644157
+2025-10-27 11:51:19,227 - root - INFO - val auc: 0.9398389977419538, new node val auc: 0.940352993546142
+2025-10-27 11:51:19,227 - root - INFO - val ap: 0.9452831862696428, new node val ap: 0.9449431030549506
+2025-10-27 11:51:19,246 - root - INFO - start 2 epoch
+2025-10-27 11:51:50,681 - root - INFO - epoch: 2 took 31.44s
+2025-10-27 11:51:50,682 - root - INFO - Epoch mean loss: 0.6070567101277693
+2025-10-27 11:51:50,682 - root - INFO - val auc: 0.9504242980525545, new node val auc: 0.9459521391958818
+2025-10-27 11:51:50,682 - root - INFO - val ap: 0.9558536492465958, new node val ap: 0.9515089922891837
+2025-10-27 11:51:59,440 - root - INFO - Test statistics: Old nodes -- auc: 0.9411534601936012, ap: 0.9461400020559988
+2025-10-27 11:51:59,441 - root - INFO - Test statistics: New nodes -- auc: 0.9244935687771396, ap: 0.9317084894744794
+2025-10-27 11:51:59,441 - root - INFO - Saving TTGN model
+2025-10-27 11:51:59,546 - root - INFO - TTGN model saved

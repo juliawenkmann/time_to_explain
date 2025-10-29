@@ -18,7 +18,7 @@ def _find_repo_root(start: Path | None = None) -> Path:
 # ---- Derived paths you can rely on in notebooks ----
 REPO_ROOT = _find_repo_root()
 PKG_DIR = REPO_ROOT / "time_to_explain"
-TGN_SUBMODULE_ROOT = REPO_ROOT / "submodules" / "models" / "tgn"
+TGN_SUBMODULE_ROOT = REPO_ROOT / "submodules" / "models" / "tgn" /"TTGN"
 
 # Your repo keeps resources at the repo root (sibling to the package).
 # Adjust these three lines if your layout differs.

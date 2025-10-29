@@ -1,0 +1,10 @@
+2025-10-27 11:52:07,870 - root - INFO - Namespace(data='wikipedia', bs=200, prefix='tte', n_degree=10, n_head=2, n_epoch=3, n_layer=1, lr=0.0003, patience=5, n_runs=1, drop_out=0.1, gpu=0, node_dim=100, time_dim=100, backprop_every=1, use_memory=True, embedding_module='graph_attention', message_function='identity', aggregator='last', memory_update_at_end=False, message_dim=100, memory_dim=172, different_new_nodes=False, uniform=False, randomize_features=False, use_destination_embedding_in_message=False, use_source_embedding_in_message=False, n_neg=1, use_validation=False, new_node=False)
+2025-10-27 11:52:08,151 - root - DEBUG - Num of training instances: 133853
+2025-10-27 11:52:08,151 - root - DEBUG - Num of batches per epoch: 670
+2025-10-27 11:52:08,151 - root - INFO - Loading saved TTGN model
+2025-10-27 11:52:08,157 - root - INFO - TTGN models loaded
+2025-10-27 11:52:08,157 - root - INFO - Start training node classification task
+2025-10-27 11:52:40,417 - root - INFO - Epoch 0: train loss: 0.060956738278645076, val auc: 0.8845460907587133, time: 31.94220995903015
+2025-10-27 11:53:12,387 - root - INFO - Epoch 1: train loss: 0.011693967564974967, val auc: 0.8810748726609522, time: 31.96900486946106
+2025-10-27 11:53:44,088 - root - INFO - Epoch 2: train loss: 0.01068113238564623, val auc: 0.8833257180534188, time: 31.700993061065674
+2025-10-27 11:53:44,088 - root - INFO - test auc: 0.8833257180534188

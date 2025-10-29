@@ -7,49 +7,15 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from time_to_explain.models.adapter.connector import TGNNWrapper
+from time_to_explain.models.adapter.wrapper import TGNNWrapper
 from time_to_explain.setup.constants import COL_TIMESTAMP, COL_NODE_I, COL_NODE_U
 from time_to_explain.data.data import BatchData, ContinuousTimeDynamicGraphDataset
 from time_to_explain.setup.utils import ProgressBar, construct_model_path
-from submodules.models.tgn.evaluation.evaluation import eval_edge_prediction
-from submodules.models.tgn.model.tgn import TGN
-from submodules.models.tgn.utils.data_processing import compute_time_statistics, Data
-from submodules.models.tgn.utils.utils import EarlyStopMonitor, RandEdgeSampler, get_neighbor_finder
-
-
-def to_data_object(dataset: ContinuousTimeDynamicGraphDataset, edges_to_drop: np.ndarray = None) -> Data:
-    """
-    Convert the dataset to a data object that can be used as input for a neighborhood finder
-    @param dataset: Dataset to convert to the data object
-    @param edges_to_drop: Edges that should be excluded from the data
-    @return: Data object of the dataset
-    """
-    if edges_to_drop is not None:
-        edge_mask = ~np.isin(dataset.edge_ids, edges_to_drop)
-        return Data(dataset.source_node_ids[edge_mask], dataset.target_node_ids[edge_mask],
-                    dataset.timestamps[edge_mask], dataset.edge_ids[edge_mask], dataset.labels[edge_mask])
-    return Data(dataset.source_node_ids, dataset.target_node_ids, dataset.timestamps, dataset.edge_ids, dataset.labels)
-
-def _unpack_metrics(metrics):
-    """
-    Accept (ap, auc, acc), (ap, auc), or a dict with keys like
-    'ap'/'average_precision', 'auc'/'roc_auc', 'acc'/'accuracy'.
-    Returns: (ap, auc, acc_or_None)
-    """
-    if isinstance(metrics, dict):
-        ap = metrics.get('ap', metrics.get('average_precision'))
-        auc = metrics.get('auc', metrics.get('roc_auc'))
-        acc = metrics.get('acc', metrics.get('accuracy'))
-        return ap, auc, acc
-
-    if isinstance(metrics, (list, tuple)):
-        if len(metrics) >= 3:
-            return metrics[0], metrics[1], metrics[2]
-        if len(metrics) == 2:
-            return metrics[0], metrics[1], None
-
-    # Unexpected shape
-    raise ValueError(f"Unsupported metrics format from eval_edge_prediction: {type(metrics)} -> {metrics}")
+from time_to_explain.models.adapter.helpers import to_data_object, _unpack_metrics
+from submodules.models.tgn.TTGN.evaluation.evaluation import eval_edge_prediction
+from submodules.models.tgn.TTGN.model.tgn import TGN
+from submodules.models.tgn.TTGN.utils.data_processing import compute_time_statistics, Data
+from submodules.models.tgn.TTGN.utils.utils import EarlyStopMonitor, RandEdgeSampler, get_neighbor_finder
 
 
 class TGNWrapper(TGNNWrapper):
@@ -66,6 +32,7 @@ class TGNWrapper(TGNNWrapper):
 
         self.model = model
         self.n_neighbors = n_neighbors
+        self.full_ngh_finder = get_neighbor_finder(to_data_object(self.dataset), uniform=False)
         if checkpoint_path is not None:
             self.model.load_state_dict(torch.load(checkpoint_path))
         self.model.to(torch.device(device))
@@ -237,8 +204,15 @@ class TGNWrapper(TGNNWrapper):
                                                         different_new_nodes_between_val_and_test=False)
 
         train_neighborhood_finder = get_neighbor_finder(train_data, uniform=False)
-
         full_neighborhood_finder = get_neighbor_finder(full_data, uniform=False)
+
+        # cache frequently used data/samplers for downstream calls
+        self.full_ngh_finder = full_neighborhood_finder
+        self.train_data = train_data
+        self.val_data = val_data
+        self.test_data = test_data
+        self.new_node_val_data = new_node_val_data
+        self.new_node_test_data = new_node_test_data
 
         # Initialize negative samplers. Set seeds for validation and testing so negatives are the same
         # across different runs
@@ -250,6 +224,8 @@ class TGNWrapper(TGNNWrapper):
         new_nodes_test_random_sampler = RandEdgeSampler(new_node_test_data.sources,
                                                         new_node_test_data.destinations,
                                                         seed=3)
+
+        self.negative_edge_sampler = train_random_sampler
 
         device = torch.device(self.device)
 
@@ -310,8 +286,8 @@ class TGNWrapper(TGNNWrapper):
                 positive_prob, negative_prob = self.model.compute_edge_probabilities(sources_batch, destinations_batch,
                                                                                      negatives_batch, timestamps_batch,
                                                                                      edge_ids_batch, self.n_neighbors)
-                loss += criterion(positive_prob.squeeze(), positive_label) + criterion(negative_prob.squeeze(),
-                                                                                       negative_label)
+                loss += criterion(positive_prob.reshape(-1), positive_label.reshape(-1)) + \
+                        criterion(negative_prob.reshape(-1), negative_label.reshape(-1))
 
                 loss.backward()
                 optimizer.step()
@@ -334,11 +310,10 @@ class TGNWrapper(TGNNWrapper):
                 train_memory_backup = self.model.memory.backup_memory()
 
             val_metrics = eval_edge_prediction(model=self.model,
-                                   neighbor_finder=self.full_ngh_finder,
-                                   data=self.val_data,
-                                   negative_edge_sampler=self.negative_edge_sampler,
-                                   batch_size=self.batch_size,
-                                   device=self.device)
+                                               negative_edge_sampler=val_random_sampler,
+                                               data=val_data,
+                                               n_neighbors=self.n_neighbors,
+                                               batch_size=self.batch_size)
             
             val_ap, val_auc, val_acc = _unpack_metrics(val_metrics)
 
@@ -353,7 +328,8 @@ class TGNWrapper(TGNNWrapper):
             new_nodes_val_ap, nn_val_auc, nn_val_acc = eval_edge_prediction(model=self.model,
                                                                             negative_edge_sampler=nn_val_random_sampler,
                                                                             data=new_node_val_data,
-                                                                            n_neighbors=self.n_neighbors)
+                                                                            n_neighbors=self.n_neighbors,
+                                                                            batch_size=self.batch_size)
 
             if self.use_memory:
                 # Restore memory we had at the end of validation
@@ -409,7 +385,8 @@ class TGNWrapper(TGNNWrapper):
         test_ap, test_auc, test_acc = eval_edge_prediction(model=self.model,
                                                            negative_edge_sampler=test_random_sampler,
                                                            data=test_data,
-                                                           n_neighbors=self.n_neighbors)
+                                                           n_neighbors=self.n_neighbors,
+                                                           batch_size=self.batch_size)
         if self.use_memory:
             self.model.memory.restore_memory(val_memory_backup)
 
@@ -417,7 +394,8 @@ class TGNWrapper(TGNNWrapper):
         nn_test_ap, nn_test_auc, nn_test_acc = eval_edge_prediction(model=self.model,
                                                                     negative_edge_sampler=new_nodes_test_random_sampler,
                                                                     data=new_node_test_data,
-                                                                    n_neighbors=self.n_neighbors)
+                                                                    n_neighbors=self.n_neighbors,
+                                                                    batch_size=self.batch_size)
 
         self.logger.info(
             'Test statistics: Old nodes -- auc: {}, ap: {}, acc: {}'.format(test_auc, test_ap, test_acc))

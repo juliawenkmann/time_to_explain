@@ -18,10 +18,10 @@ from time_to_explain.data.data import ContinuousTimeDynamicGraphDataset, TrainTe
 
 
 # Submodule models (the underlying architectures)
-from submodules.models.tgn.model.tgn import TGN
-from submodules.models.tgn.utils.utils import get_neighbor_finder
-from submodules.models.tgn.model.tgn import TGN as TTGN  # legacy/alt impl used by TTGNWrapper
-from submodules.models.tgn.utils.utils import get_neighbor_finder as tget_neighbor_finder
+from submodules.models.tgn.TTGN.model.tgn import TGN
+from submodules.models.tgn.TTGN.utils.utils import get_neighbor_finder
+from submodules.models.tgn.TTGN.model.tgn import TGN as TTGN  # legacy/alt impl used by TTGNWrapper
+from submodules.models.tgn.TTGN.utils.utils import get_neighbor_finder as tget_neighbor_finder
 SAMPLERS = ['random', 'temporal', 'spatio-temporal', 'local-gradient']
 
 # -----------------------

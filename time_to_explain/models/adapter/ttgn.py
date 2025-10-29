@@ -4,13 +4,13 @@ import numpy as np
 import torch
 
 from time_to_explain.setup.utils import ProgressBar
-from submodules.models.tgn.model.tgn import TGN
+from submodules.models.tgn.TTGN.model.tgn import TGN
 
-from time_to_explain.models.adapter.connector import TGNNWrapper
+from time_to_explain.models.adapter.wrapper import TGNNWrapper
 from time_to_explain.data.data import ContinuousTimeDynamicGraphDataset, BatchData
 from time_to_explain.setup.constants import COL_ID
-from submodules.models.tgn.utils.data_processing import compute_time_statistics
-from submodules.models.tgn.utils.utils import NeighborFinder
+from submodules.models.tgn.TTGN.utils.data_processing import compute_time_statistics
+from submodules.models.tgn.TTGN.utils.utils import NeighborFinder
 
 
 # Implementation of the adjusted TGN model used by Xia et al. 2023 (https://openreview.net/forum?id=BR_ZhvcYbGJ)

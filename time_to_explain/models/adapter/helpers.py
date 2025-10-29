@@ -1,33 +1,11 @@
-import math
-import pickle
-import random
-import time
-from pathlib import Path
-
 import numpy as np
-import torch
 import itertools
-
 import numpy as np
-import torch
-
-from time_to_explain.setup.utils import ProgressBar
-from submodules.models.tgn.model.tgn import TGN
-
-from time_to_explain.models.adapter.connector import TGNNWrapper
-from time_to_explain.data.data import ContinuousTimeDynamicGraphDataset, BatchData
+from time_to_explain.data.data import ContinuousTimeDynamicGraphDataset
 from time_to_explain.setup.constants import COL_ID
-from submodules.models.tgn.utils.data_processing import compute_time_statistics
-from submodules.models.tgn.utils.utils import NeighborFinder
-
-from time_to_explain.models.adapter.connector import TGNNWrapper
-from time_to_explain.setup.constants import COL_TIMESTAMP, COL_NODE_I, COL_NODE_U
+from submodules.models.tgn.TTGN.utils.utils import NeighborFinder
 from time_to_explain.data.data import BatchData, ContinuousTimeDynamicGraphDataset
-from time_to_explain.setup.utils import ProgressBar, construct_model_path
-from submodules.models.tgn.evaluation.evaluation import eval_edge_prediction
-from submodules.models.tgn.model.tgn import TGN
-from submodules.models.tgn.utils.data_processing import compute_time_statistics, Data
-from submodules.models.tgn.utils.utils import EarlyStopMonitor, RandEdgeSampler, get_neighbor_finder
+from submodules.models.tgn.TTGN.utils.data_processing import Data
 
 
 def to_data_object(dataset: ContinuousTimeDynamicGraphDataset, edges_to_drop: np.ndarray = None) -> Data:

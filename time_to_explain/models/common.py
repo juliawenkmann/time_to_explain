@@ -9,14 +9,16 @@ import numpy as np
 import pandas as pd
 import torch
 
-from time_to_explain.models.adapter.tgn import TGNWrapper, to_data_object
+from time_to_explain.models.adapter.tgn import TGNWrapper
 from time_to_explain.models.adapter.ttgn import TTGNWrapper
 from time_to_explain.models.adapter.tgat import TGATWrapper
+from time_to_explain.models.adapter.helpers import to_data_object
+from time_to_explain.models.device import device_from_args
 from time_to_explain.data.data import ContinuousTimeDynamicGraphDataset, TrainTestDatasetParameters
-from submodules.models.tgn.model.tgn import TGN
-from submodules.models.tgn.utils.utils import get_neighbor_finder
-from submodules.models.tgn.model.tgn import TGN as TTGN
-from submodules.models.tgn.utils.utils import get_neighbor_finder as tget_neighbor_finder
+from submodules.models.tgn.TTGN.model.tgn import TGN
+from submodules.models.tgn.TTGN.utils.utils import get_neighbor_finder
+from submodules.models.tgn.TTGN.model.tgn import TGN as TTGN
+from submodules.models.tgn.TTGN.utils.utils import get_neighbor_finder as tget_neighbor_finder
 
 SAMPLERS = ['random', 'temporal', 'spatio-temporal', 'local-gradient']
 
@@ -117,6 +119,7 @@ def create_ttgnn_wrapper_from_args(args: Namespace, dataset: ContinuousTimeDynam
     if dataset is None:
         dataset = create_dataset_from_args(args)
 
+    dev = device_from_args(args)
     dev_str = dev.type  # for wrappers that expect a string
 
     if args.type == 'TGN':
