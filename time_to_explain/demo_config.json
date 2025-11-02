@@ -1,0 +1,13 @@
+{
+  "run_id": "demo",
+  "out_dir": "runs",
+  "seed": 123,
+  "k_hop": 2,
+  "num_neighbors": 50,
+  "metrics": ["sparsity"],
+  "explainers": [],
+  "anchors": [
+    {"target_kind": "edge", "u": 1, "i": 42, "ts": 1000.0},
+    {"target_kind": "edge", "u": 3, "i": 99, "ts": 2000.0}
+  ]
+}

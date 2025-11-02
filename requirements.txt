@@ -1,0 +1,29 @@
+# requirements.txt
+# Recommended: Python 3.10, CUDA 11.7-compatible wheels
+
+# Core scientific stack
+numpy==1.23.5
+scipy>=1.9
+pandas==2.0.0
+networkx>=2.8
+pyyaml>=6.0
+tqdm==4.66.1
+gensim==4.3.1
+scikit-learn==1.2.2
+pyarrow
+
+# GNN / GPU stack (align CUDA builds)
+torch==2.0.0
+torch_geometric==2.3.0
+dgl==1.0.2+cu117
+
+# Explainability, viz, runtime
+captum>=0.7
+matplotlib>=3.7
+seaborn>=0.12
+shap
+hydra-core
+rdkit
+sympy
+ipykernel
+ipython
