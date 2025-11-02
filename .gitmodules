@@ -1,5 +1,5 @@
-[submodule "coDy"]
-	path = submodules/explainer/coDy
+[submodule "submodules/explainer/CoDy"]
+	path = submodules/explainer/CoDy
 	url = git@github.com:juliawenkmann/CoDy.git
 [submodule "submodules/models/tgn"]
 	path = submodules/models/tgn
