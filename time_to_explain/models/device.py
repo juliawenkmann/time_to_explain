@@ -70,4 +70,3 @@ def device_from_args(args: Namespace | Any) -> torch.device:
     prefer = device_attr if device_attr not in (None, "", "auto") else None
     cuda_flag = bool(getattr(args, "cuda", False))
     return resolve_device(prefer, cuda=cuda_flag)
-

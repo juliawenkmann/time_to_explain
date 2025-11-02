@@ -277,8 +277,8 @@ def create_dataset_from_args(args: Namespace, parameters: TrainTestDatasetParame
     else:
         name = name.split('/')[-1]
     all_event_data = pd.read_csv(events[0])
-    edge_features = np.load(edge_features[0])
-    node_features = np.load(node_features[0])
+    edge_features = np.load(edge_features[0], allow_pickle=True)
+    node_features = np.load(node_features[0], allow_pickle=True)
 
     return ContinuousTimeDynamicGraphDataset(all_event_data, edge_features, node_features, name,
                                              directed=args.directed, bipartite=args.bipartite,
@@ -321,8 +321,8 @@ def create_dataset(
         name = name.split('/')[-1]
 
     all_event_data = pd.read_csv(events[0])
-    edge_features_arr = np.load(edge_features[0])
-    node_features_arr = np.load(node_features[0])
+    edge_features_arr = np.load(edge_features[0], allow_pickle=True)
+    node_features_arr = np.load(node_features[0], allow_pickle=True)
 
     return ContinuousTimeDynamicGraphDataset(
         all_event_data, edge_features_arr, node_features_arr, name,

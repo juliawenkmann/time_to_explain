@@ -1,9 +1,10 @@
 # notebooks/src/constants.py
 from __future__ import annotations
-from pathlib import Path
 import os
 import sys
-from typing import Optional
+import re
+from pathlib import Path
+from typing import Iterable, Optional
 
 
 def _find_repo_root(start: Path | None = None) -> Path:
@@ -18,13 +19,13 @@ def _find_repo_root(start: Path | None = None) -> Path:
 # ---- Derived paths you can rely on in notebooks ----
 REPO_ROOT = _find_repo_root()
 PKG_DIR = REPO_ROOT / "time_to_explain"
-TGN_SUBMODULE_ROOT = REPO_ROOT / "submodules" / "models" / "tgn" /"TTGN"
+TGN_SUBMODULE_ROOT = REPO_ROOT / "submodules" / "models" / "tgn"
 
 # Your repo keeps resources at the repo root (sibling to the package).
 # Adjust these three lines if your layout differs.
 RESOURCES_DIR = REPO_ROOT / "resources"
-RAW_DATA_DIR = Path(os.getenv("PROCESSED_DATA_DIR", RESOURCES_DIR / "datasets"/ "raw"))
-PROCESSED_DATA_DIR = Path(os.getenv("PROCESSED_DATA_DIR", RESOURCES_DIR / "datasets"/ "processed"))
+RAW_DATA_DIR = Path(os.getenv("RAW_DATA_DIR", RESOURCES_DIR / "datasets" / "raw"))
+PROCESSED_DATA_DIR = Path(os.getenv("PROCESSED_DATA_DIR", RESOURCES_DIR / "datasets" / "processed"))
 MODELS_ROOT = RESOURCES_DIR / "models"
 RESULTS_ROOT = RESOURCES_DIR / "results"
 
@@ -34,10 +35,6 @@ def ensure_repo_importable() -> None:
     if s not in sys.path:
         sys.path.insert(0, s)
 
-
-import re
-from pathlib import Path
-from typing import Iterable, Optional
 
 def get_last_checkpoint(
     models_root: str | Path,
