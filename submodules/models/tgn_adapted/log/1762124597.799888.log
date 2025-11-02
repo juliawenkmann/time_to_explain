@@ -8,3 +8,27 @@
 2025-11-03 00:05:09,443 - root - INFO - val ap: 0.9296735823835914, new node val ap: 0.9285028248327948
 2025-11-03 00:05:09,443 - root - INFO - val acc: 0.8401950780312124, new node val acc: 0.8331636428741943
 2025-11-03 00:05:09,557 - root - INFO - start 1 epoch
+2025-11-03 00:07:13,153 - root - INFO - epoch: 1 took 123.60s
+2025-11-03 00:07:13,153 - root - INFO - Epoch mean loss: 0.7750984205106644
+2025-11-03 00:07:13,153 - root - INFO - val auc: 0.9216347076926007, new node val auc: 0.926763770598045
+2025-11-03 00:07:13,153 - root - INFO - val ap: 0.9287437415366073, new node val ap: 0.9338225683725229
+2025-11-03 00:07:13,153 - root - INFO - val acc: 0.8404791916766706, new node val acc: 0.8445637383623777
+2025-11-03 00:07:13,263 - root - INFO - start 2 epoch
+2025-11-03 00:09:06,313 - root - INFO - epoch: 2 took 113.06s
+2025-11-03 00:09:06,313 - root - INFO - Epoch mean loss: 0.6658349758581791
+2025-11-03 00:09:06,313 - root - INFO - val auc: 0.9416237042436023, new node val auc: 0.9389701069871125
+2025-11-03 00:09:06,313 - root - INFO - val ap: 0.9476825949657414, new node val ap: 0.9449912315765834
+2025-11-03 00:09:06,313 - root - INFO - val acc: 0.8593147258903562, new node val acc: 0.8560796132728575
+2025-11-03 00:09:06,425 - root - INFO - start 3 epoch
+2025-11-03 00:10:59,745 - root - INFO - epoch: 3 took 113.33s
+2025-11-03 00:10:59,745 - root - INFO - Epoch mean loss: 0.6026072601227076
+2025-11-03 00:10:59,745 - root - INFO - val auc: 0.9485164761142553, new node val auc: 0.9415386781779241
+2025-11-03 00:10:59,745 - root - INFO - val ap: 0.9528668466481066, new node val ap: 0.9468926415001567
+2025-11-03 00:10:59,745 - root - INFO - val acc: 0.866939775910364, new node val acc: 0.8582925519216996
+2025-11-03 00:10:59,832 - root - INFO - start 4 epoch
+2025-11-03 00:12:56,983 - root - INFO - epoch: 4 took 117.17s
+2025-11-03 00:12:56,983 - root - INFO - Epoch mean loss: 0.5707678953256055
+2025-11-03 00:12:56,983 - root - INFO - val auc: 0.9542519698355533, new node val auc: 0.9507656814544465
+2025-11-03 00:12:56,983 - root - INFO - val ap: 0.9580467759870908, new node val ap: 0.9549230307299833
+2025-11-03 00:12:56,983 - root - INFO - val acc: 0.8815746298519407, new node val acc: 0.875778825495345
+2025-11-03 00:12:57,090 - root - INFO - start 5 epoch
