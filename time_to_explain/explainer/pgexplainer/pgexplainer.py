@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import time
 
-from time_to_explain.utils.embedding import Embedding
+from time_to_explain.explainer.greedy_and_cody.embedding import Embedding
 from cody.implementations.ttgn import TTGNWrapper
 from cody_base import Explainer
 from time_to_explain.utils.common import greedy_highest_value_over_array, k_hop_temporal_subgraph

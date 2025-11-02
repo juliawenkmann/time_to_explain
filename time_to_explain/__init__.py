@@ -17,7 +17,7 @@ except Exception as exc:  # pragma: no cover - import guard
     warnings.warn(f"Failed to register dataset builders: {exc!r}", RuntimeWarning)
 
 try:
-    from time_to_explain.explainer.cody import cody as _explainer_adapters  # noqa: F401
+    from time_to_explain.explainer.greedy_and_cody import cody as _explainer_adapters  # noqa: F401
 except Exception as exc:  # pragma: no cover - import guard
     warnings.warn(
         "Failed to register explainer adapters from CoDy. "

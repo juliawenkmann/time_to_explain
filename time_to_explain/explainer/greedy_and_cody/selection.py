@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import pandas as pd
 from constants import COL_ID, COL_SUBGRAPH_DISTANCE, COL_TIMESTAMP
-from time_to_explain.utils.embedding import Embedding
+from time_to_explain.explainer.greedy_and_cody.embedding import Embedding
 
 
 def create_embedding_model(emb: Embedding, model_path: str = None, device: str = 'cpu'):
