@@ -5,3 +5,6 @@ resources/
 resources
 /resources
 /resources/
+
+# large artefacts
+resources.zip
