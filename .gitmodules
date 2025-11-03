@@ -10,6 +10,6 @@
 [submodule "submodules/explainer/htgexplainer"]
 	path = submodules/explainer/htgexplainer
 	url = git@github.com:juliawenkmann/htgexplainer.git
-[submodule "submodules/explainer/tgnnexlpeiner"]
+[submodule "submodules/explainer/tgnnexplainer"]
 	path = submodules/explainer/tgnnexplainer
 	url = git@github.com:juliawenkmann/tgnnexplainer.git
