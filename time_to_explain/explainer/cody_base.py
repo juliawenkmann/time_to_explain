@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from connector import TGNNWrapper
 from constants import EXPLAINED_EVENT_MEMORY_LABEL, COL_ID
-from time_to_explain.data.data import SubgraphGenerator
+from time_to_explain.data.legacy.data import SubgraphGenerator
 from time_to_explain.explainer.greedy_and_cody.selection import (SelectionPolicy, RandomSelectionPolicy, TemporalSelectionPolicy,
                             SpatioTemporalSelectionPolicy, LocalEventImpactSelectionPolicy)
 

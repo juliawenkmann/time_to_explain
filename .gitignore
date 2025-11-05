@@ -11,3 +11,7 @@ resources.zip
 
 # large artifacts
 resources.zip
+
+notebooks/viz_out
+notebooks/runs
+__pycache__/

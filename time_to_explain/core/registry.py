@@ -22,6 +22,7 @@ class Registry(Generic[T]):
 EXPLAINERS: Registry[Any] = Registry("explainers")
 METRICS: Registry[Any] = Registry("metrics")
 EXTRACTORS: Registry[Any] = Registry("extractors")
+DATASETS = Registry("datasets")
 
 def register_explainer(name: str):
     def deco(cls_or_fn):
@@ -40,3 +41,12 @@ def register_extractor(name: str):
         EXTRACTORS.register(name, cls)
         return cls
     return deco
+
+def register_dataset(name: str):
+    def deco(cls_or_fn):
+        DATASETS.register(name, cls_or_fn)
+        return cls_or_fn
+    return deco
+
+def get_dataset(name: str): return DATASETS.get(name)
+def available_datasets():   return DATASETS.keys()

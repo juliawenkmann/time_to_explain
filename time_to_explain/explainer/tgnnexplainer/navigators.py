@@ -1,9 +1,8 @@
 import torch
 import numpy as np
 from time_to_explain.explainer.attention.attn_explainer_tg import AttnExplainerTG
-from time_to_explain.explainer.pgexplainer.other_baselines_tg import PGExplainerExt
-from time_to_explain.explainer.pgexplainer.other_baselines_tg import _create_explainer_input
-from tg_score import _set_tgat_data
+from time_to_explain.explainer.tgnnexplainer.other_baselines_tg import PGExplainerExt, _create_explainer_input
+from time_to_explain.explainer.tgnnexplainer.tg_score import _set_tgat_data
 from pandas import DataFrame
 from copy import deepcopy
 

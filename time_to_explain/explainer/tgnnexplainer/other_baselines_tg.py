@@ -10,10 +10,10 @@ import torch
 import torch.nn as nn
 
 from time_to_explain.explainer.tgnnexplainer.base_explainer_tg import BaseExplainerTG
-from time_to_explain.metrics.metrics_tg_utils import fidelity_inv_tg
-from tg_score import _set_tgat_data
-from tgnnexplainer.xgraph.models.ext.tgat.module import TGAN
-from tgnnexplainer.xgraph.models.ext.tgn.model.tgn import TGN
+from time_to_explain.metrics.legacy.metrics_tg_utils import fidelity_inv_tg
+from time_to_explain.explainer.tgnnexplainer.tg_score import _set_tgat_data
+from submodules.models.tgat.module import TGAN
+from submodules.models.tgn.model.tgn import TGN
 
 
 def _create_explainer_input(model: Union[TGAN, TGN], model_name, all_events, candidate_events=None, event_idx=None, device=None):

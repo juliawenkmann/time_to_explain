@@ -2,6 +2,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Protocol, Tuple, runtime_checkable
 import hashlib, json, time
+from typing import Any, Dict, Optional, TypedDict
+import pandas as pd
+import numpy as np
 
 TargetKind = Literal["edge", "node", "graph"]
 
@@ -80,3 +83,36 @@ class BaseExplainer:
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(alias={self.alias!r}, name={self.name!r})"
+
+
+# --- add this to time_to_explain/core/types.py ---
+from dataclasses import dataclass, field
+from typing import Any, Dict, Optional
+
+@dataclass
+class MetricResult:
+    """
+    Lightweight container for metric outputs.
+
+    name:        metric name, e.g. "sparsity" or "fidelity"
+    values:      flat mapping of metric components (e.g. {"sparsity_edges": 0.83})
+    direction:   optional hint for dashboards ("higher-is-better" or "lower-is-better")
+    run_id:      optional evaluation run id
+    explainer:   optional explainer alias/name the metric was computed for
+    context_fp:  optional ExplanationContext fingerprint
+    extras:      free-form payload (confidence intervals, seeds, timing, etc.)
+    """
+    name: str
+    values: Dict[str, float]
+    direction: Optional[str] = None
+    run_id: Optional[str] = None
+    explainer: Optional[str] = None
+    context_fp: Optional[str] = None
+    extras: Dict[str, Any] = field(default_factory=dict)
+
+
+class DatasetBundle(TypedDict):
+    interactions: pd.DataFrame   # columns: u, i, ts, label (optional etype)
+    node_features: Optional[np.ndarray]  # shape [num_nodes, d] or None
+    edge_features: Optional[np.ndarray]  # per-interaction (or per-edge) shape
+    metadata: Dict[str, Any]

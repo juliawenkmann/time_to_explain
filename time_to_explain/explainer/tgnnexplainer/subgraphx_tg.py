@@ -15,9 +15,8 @@ from typing import Union, Optional
 from typing import Callable, Union, Optional
 from tqdm import tqdm
 
-from time_to_explain.explainer.tgnnexplainer.tgnnexplainer import ROOT_DIR
 from time_to_explain.explainer.tgnnexplainer.base_explainer_tg import BaseExplainerTG
-from time_to_explain.explainer.pgexplainer.other_baselines_tg import _create_explainer_input
+from .other_baselines_tg import _create_explainer_input
 
 
 def to_networkx_tg(events: DataFrame):
@@ -417,7 +416,8 @@ class SubgraphXTG(BaseExplainerTG):
                  save_results: bool= True,
                  navigator=None,
                  navigator_type='mlp',
-                 pg_positive=True
+                 pg_positive=True,
+                 _explain_counter: int = 0
                 ):
 
         super(SubgraphXTG, self).__init__(model=model, 
@@ -448,6 +448,7 @@ class SubgraphXTG(BaseExplainerTG):
         self.navigator_type = navigator_type
         self.pg_positive = pg_positive
         self.suffix = self._path_suffix(navigator, navigator_type, pg_positive)
+        self._explain_counter = _explain_counter
 
     @staticmethod
     def read_from_MCTSInfo_list(MCTSInfo_list):
@@ -611,7 +612,8 @@ class SubgraphXTG(BaseExplainerTG):
 
         results_list = []
         for i, event_idx in enumerate(event_idxs):
-            print(f'\nexplain {i}-th: {event_idx}')
+            print(f"\nexplain {self._explain_counter}-th: {event_idx}")
+            self._explain_counter += 1
             self._initialize(event_idx)
 
             if self.load_results:

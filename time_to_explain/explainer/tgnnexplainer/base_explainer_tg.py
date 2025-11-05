@@ -5,9 +5,13 @@ from pathlib import Path
 from typing import Optional, Union
 
 from pandas import DataFrame
-from tgnnexplainer.xgraph.models.ext.tgat.module import TGAN
-from tg_score import TGNNRewardWraper
-from tgnnexplainer.xgraph.dataset.utils_dataset import k_hop_temporal_subgraph
+from submodules.models.tgat.module import TGAN
+from .tg_score import TGNNRewardWraper
+
+try:
+    from utils.utils_dataset import k_hop_temporal_subgraph  # legacy package layout
+except ModuleNotFoundError:
+    from time_to_explain.utils.utils_dataset import k_hop_temporal_subgraph
 
 class BaseExplainerTG(object):
     def __init__(self,
@@ -185,5 +189,4 @@ class BaseExplainerTG(object):
         df = DataFrame(data_dict)
         df.to_csv(filename, index=False)
         print(f'candidate scores saved at {filename}')
-
 

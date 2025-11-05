@@ -1,97 +1,3 @@
-from __future__ import annotations
-from typing import Any, Dict, Optional, Tuple
-import numpy as np
-from .types import Subgraph
-
-class KHopTemporalExtractor:
-    """Replace the body of extract() with your real temporal k-hop neighborhood logic."""
-    name = "khop_temporal"
-
-    def __init__(self, *, cache: Optional[Dict[str, Subgraph]] = None):
-        self._cache = cache if cache is not None else {}
-
-    def extract(self, dataset: Any, anchor: Dict[str, Any], *, k_hop: int,
-                num_neighbors: int, window: Optional[Tuple[float,float]] = None) -> Subgraph:
-        key = str((id(dataset), anchor, k_hop, num_neighbors, window))
-        if key in self._cache:
-            return self._cache[key]
-
-        u = int(anchor.get("u", anchor.get("src", 0)))
-        i = int(anchor.get("i", anchor.get("dst", 0)))
-        ts = float(anchor.get("ts", 0.0))
-        subg = Subgraph(node_ids=[u, i], edge_index=[(0,1)], timestamps=[ts])
-        self._cache[key] = subg
-        return subg
-
-
-
-def k_hop_temporal_subgraph(df, num_hops, event_idx):
-    """
-    df: temporal graph, events stream. DataFrame. An user-item bipartite graph.
-    node: center user node
-    num_hops: number of hops of the subgraph
-    event_idx: should start from 1. 1, 2, 3, ...
-    return: a sub DataFrame
-
-    """
-    # verify_dataframe(df)
-    #verify_dataframe_unify(df)
-
-    df_new = df.copy()
-    df_new['u'] -= 1
-    df_new['i'] -= 1
-    df_new = df_new[df_new.e_idx <= event_idx] # ignore events latter than event_idx
-
-    # center_node = df_new.iloc[event_idx-1, 0]
-    center_node = df_new[df_new.e_idx == event_idx].u.values[0] # event_idx represents e_idx
-
-    subsets = [[center_node], ]
-    num_nodes = df_new.i.max() + 1
-
-    # import ipdb; ipdb.set_trace()
-    node_mask = np.zeros((num_nodes,), dtype=bool)
-    source_nodes = np.array(df_new.iloc[:, 0], dtype=int) # user nodes, 0--k-1
-    target_nodes = np.array(df_new.iloc[:, 1], dtype=int) # item nodes, k--N-1, N is the number of total users and items
-
-    for _ in range(num_hops):
-        node_mask.fill(False)
-        node_mask[ np.array(subsets[-1]) ] = True
-        edge_mask = node_mask[source_nodes]
-        new_nodes = target_nodes[edge_mask] # new neighbors
-        subsets.append(np.unique(new_nodes).tolist())
-
-        source_nodes, target_nodes = target_nodes, source_nodes # regarded as undirected graph
-
-    # import ipdb; ipdb.set_trace()
-    subset = np.unique(np.concatenate([np.array(nodes) for nodes in subsets])) # selected temporal subgraph nodes
-    
-    assert center_node in subset
-
-    source_nodes = np.array(df_new.iloc[:, 0], dtype=int)
-    target_nodes = np.array(df_new.iloc[:, 1], dtype=int)
-
-    node_mask.fill(False)
-    node_mask[ subset ] = True
-
-    user_mask = node_mask[source_nodes] # user mask for events
-    item_mask = node_mask[target_nodes] # item mask for events
-
-    # import ipdb; ipdb.set_trace()
-    edge_mask = user_mask & item_mask # event mask
-    # import ipdb; ipdb.set_trace()
-
-    subgraph_df = df_new.iloc[edge_mask, :].copy()
-    # subgraph_df.iloc[:, 1] -= base # recover user item naming indices
-    # import ipdb; ipdb.set_trace()
-    assert center_node in subgraph_df.iloc[:, 0].values
-
-    subgraph_df['u'] += 1
-    subgraph_df['i'] += 1
-
-    return subgraph_df
-
-
-
 import numpy as np
 
 class NeighborFinder:
@@ -162,11 +68,46 @@ class NeighborFinder:
         neighbors_idx = node_idx_l[off_set_l[src_idx]:off_set_l[src_idx + 1]] # one node's neighbors
         neighbors_ts = node_ts_l[off_set_l[src_idx]:off_set_l[src_idx + 1]]
         neighbors_e_idx = edge_idx_l[off_set_l[src_idx]:off_set_l[src_idx + 1]]
+
+        # import ipdb; ipdb.set_trace()
+        
         if len(neighbors_idx) == 0 or len(neighbors_ts) == 0:
             return neighbors_idx, neighbors_ts, neighbors_e_idx
 
+        # left = 0
+        # right = len(neighbors_idx) - 1
+
+        
+        # while left + 1 < right: # ! binary search, include cut_time
+        #     mid = (left + right) // 2
+        #     curr_t = neighbors_ts[mid]
+        #     if curr_t <= cut_time:
+        #         left = mid
+        #     else:
+        #         right = mid
+            
+        # if neighbors_ts[right] <= cut_time:
+        #     end_point = right + 1
+        # elif neighbors_ts[left] <= cut_time:
+        #     end_point = left + 1
+        # else:
+        #     end_point = left
+
+        
+        # indices = neighbors_ts <= cut_time
         indices = neighbors_ts < cut_time # NOTE: important?
+
+        # import ipdb; ipdb.set_trace()
+
+        
+        # return neighbors_idx[:end_point], neighbors_e_idx[:end_point], neighbors_ts[:end_point]
+        # return neighbors_idx[:end_point], neighbors_e_idx[:end_point], neighbors_ts[:end_point]
         return neighbors_idx[indices], neighbors_e_idx[indices], neighbors_ts[indices]
+
+        # if neighbors_ts[right] < cut_time: # https://github.com/StatsDLMathsRecomSys/Inductive-representation-learning-on-temporal-graphs/issues/8
+        #     return neighbors_idx[:right], neighbors_e_idx[:right], neighbors_ts[:right]
+        # else:
+        #     return neighbors_idx[:left], neighbors_e_idx[:left], neighbors_ts[:left]
 
     def get_temporal_neighbor(self, src_idx_l, cut_time_l, num_neighbors=20, edge_idx_preserve_list=None):
         """

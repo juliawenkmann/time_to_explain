@@ -3,8 +3,8 @@ from typing import List
 import numpy as np
 from pandas import DataFrame
 
-from submodules.models.tgn import TGAN
-from submodules.models.tgn import TGN
+from submodules.models.tgat.module import TGAN
+from submodules.models.tgn.model.tgn import TGN
 from time_to_explain.metrics.legacy.metrics_tg_utils import fidelity_inv_tg
 
 

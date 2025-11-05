@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from tgnnexplainer.xgraph.models.ext.tgat.graph import NeighborFinder
+from .graph import NeighborFinder
 
 
 class MergeLayer(torch.nn.Module):

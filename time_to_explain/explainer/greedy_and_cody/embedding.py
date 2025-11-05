@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-from time_to_explain.data.data import ContinuousTimeDynamicGraphDataset
+from time_to_explain.data.legacy.data import ContinuousTimeDynamicGraphDataset
 
 
 class Embedding:
