@@ -4,7 +4,7 @@ import numpy as np
 
 from time_to_explain.core.registry import register_metric
 from time_to_explain.core.types import ExplanationContext, ExplanationResult, MetricResult
-from time_to_explain.metrics.legacy.base import BaseMetric, MetricDirection
+from time_to_explain.core.metrics import BaseMetric, MetricDirection
 
 
 def _as_array(x) -> Optional[np.ndarray]:

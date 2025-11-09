@@ -5,6 +5,10 @@ import json, time, random, os, csv
 
 from .types import ExplanationContext, ExplanationResult, BaseExplainer, ModelProtocol, SubgraphExtractorProtocol
 from .registry import METRICS
+from time_to_explain.metrics import ensure_builtin_metrics_loaded
+
+# Ensure built-in metrics are registered before the runner looks them up.
+ensure_builtin_metrics_loaded()
 
 def set_global_seed(seed: int) -> None:
     try:

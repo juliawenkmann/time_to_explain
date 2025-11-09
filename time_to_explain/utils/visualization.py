@@ -1,10 +1,12 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 import warnings
-
+import nx 
 import numpy as np
 import pandas as pd
+import numbers
 
 # Plotly for interactive charts
 try:
@@ -155,6 +157,225 @@ def _auto_show(fig: "go.Figure", show: bool) -> None:
 
 
 # --------- Layout & index helpers ---------
+
+# Utility: load multiple metrics tables and plot fidelity vs. sparsity
+import os
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+def read_tabs_plot(files, name, plot_only_og=False, *,
+                   metric='fidelity_best.best',
+                   sparsity_col='sparsity.edges.zero_frac',
+                   labels=None, markers=None, palette='deep',
+                   og_keys=None, save_dir='plots'):
+    """Load metric CSVs, aggregate by sparsity, and plot fidelity curves."""
+    files = {k: os.fspath(v) for k, v in files.items()}
+    sns.set_theme(style='whitegrid')
+
+    tabs = {}
+    best_fids = {}
+    aufsc = {}
+
+    for key, path in files.items():
+        df = pd.read_csv(path)
+        if sparsity_col in df:
+            sparsity = df[sparsity_col]
+        elif 'sparsity' in df:
+            sparsity = df['sparsity']
+        else:
+            raise KeyError(f"{sparsity_col!r} column not found in {path}")
+
+        if metric not in df:
+            raise KeyError(f"Metric column {metric!r} not found in {path}")
+
+        tab = (df
+               .assign(sparsity=sparsity)
+               .groupby('sparsity', as_index=False)[metric]
+               .mean()
+               .sort_values('sparsity'))
+        tabs[key] = tab
+
+        best_fids[key] = tab[metric].max()
+        aufsc[key] = float(np.trapz(tab[metric], tab['sparsity']))
+
+    print('Best Fidelity (max across levels):', best_fids)
+    print('Area under fidelity-sparsity curve:', aufsc)
+
+    og_defaults = set(og_keys or ['xtg-og', 'attn', 'pbone', 'pg'])
+    keys_to_plot = [k for k in tabs if (not plot_only_og or k in og_defaults)]
+    if not keys_to_plot:
+        keys_to_plot = list(tabs.keys())
+
+    os.makedirs(save_dir, exist_ok=True)
+    palette_colors = sns.color_palette(palette, len(keys_to_plot))
+    default_markers = ['o', 's', '^', 'D', 'P', 'X', '*', 'v']
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    for idx, key in enumerate(keys_to_plot):
+        tab = tabs[key]
+        label = (labels or {}).get(key, key)
+        marker = (markers or {}).get(key, default_markers[idx % len(default_markers)])
+        sns.lineplot(data=tab, x='sparsity', y=metric, ax=ax,
+                     label=label, color=palette_colors[idx], marker=marker)
+
+    ax.set_xlabel('Sparsity (fraction of zero edges)')
+    ax.set_ylabel(metric)
+    ax.set_title(f'Fidelity vs sparsity — {name}')
+    ax.legend()
+    fig.tight_layout()
+
+    out_path = os.path.join(save_dir, f'{name}.png')
+    fig.savefig(out_path, dpi=200)
+    plt.show()
+
+    return tabs, best_fids, aufsc
+
+
+@dataclass(frozen=True)
+class MetricCurveSpec:
+    prefix: str
+    title: str
+    color: str = "tab:blue"
+    ylabel: str = "|Δ score|"
+    axis_label_percent: Tuple[str, str] = ("", "")
+    y_min: Optional[float] = 0.0
+    annotation_column: Optional[str] = None
+    annotation_label: str = "Mean = {value:.3f}"
+    annotation_position: Tuple[float, float] = (0.95, 0.05)
+    alpha: float = 0.25
+    figsize: Tuple[float, float] = (8, 4)
+
+
+def _parse_suffix(token: str) -> float | str:
+    if isinstance(token, str) and token.startswith("s="):
+        try:
+            return float(token.split("=", 1)[1])
+        except ValueError:
+            return token
+    try:
+        return float(token)
+    except (TypeError, ValueError):
+        return token
+
+
+def collect_curve_columns(metrics_df: pd.DataFrame, prefix: str) -> Tuple[List[str], List[Any]]:
+    cols = [
+        c
+        for c in metrics_df.columns
+        if c.startswith(prefix) and "@" in c and not c.endswith(".k")
+    ]
+    cols_sorted = sorted(cols, key=lambda c: _parse_suffix(c.split("@", 1)[1]))
+    levels = [_parse_suffix(c.split("@", 1)[1]) for c in cols_sorted]
+    return cols_sorted, levels
+
+
+def levels_to_axis(levels: Sequence[Any]) -> Tuple[List[Any], bool]:
+    axis_vals: List[Any] = []
+    fractional = False
+    for lvl in levels:
+        if isinstance(lvl, numbers.Real):
+            lvl_float = float(lvl)
+            if np.isnan(lvl_float) or np.isinf(lvl_float):
+                axis_vals.append(lvl_float)
+                continue
+            if 0.0 <= lvl_float <= 1.0:
+                axis_vals.append(lvl_float * 100.0)
+                fractional = True
+            else:
+                axis_vals.append(lvl_float)
+        else:
+            axis_vals.append(lvl)
+    return axis_vals, fractional
+
+
+def plot_metric_curves(metrics_df: pd.DataFrame, specs: Sequence[MetricCurveSpec]) -> Dict[str, Dict[str, Any]]:
+    """
+    Plot metric curves defined by MetricCurveSpec entries and return
+    summary metadata for each prefix.
+    """
+    results: Dict[str, Dict[str, Any]] = {}
+    if metrics_df.empty:
+        return results
+
+    for spec in specs:
+        cols, levels = collect_curve_columns(metrics_df, spec.prefix)
+        if not cols:
+            continue
+
+        axis, is_fractional = levels_to_axis(levels)
+        fig, ax = plt.subplots(figsize=spec.figsize)
+        finite_vals: List[float] = []
+        level_values: Dict[str, List[float]] = {col: [] for col in cols}
+        for _, row in metrics_df.iterrows():
+            vals = [row.get(col, np.nan) for col in cols]
+            cleaned_row: List[float] = []
+            for col, val in zip(cols, vals):
+                try:
+                    vf = float(val)
+                except (TypeError, ValueError):
+                    continue
+                if np.isfinite(vf):
+                    cleaned_row.append(vf)
+                    finite_vals.append(vf)
+                    level_values[col].append(vf)
+            ax.plot(axis, vals, color=spec.color, alpha=spec.alpha)
+
+        mean_curve: List[float] = []
+        for col in cols:
+            samples = level_values.get(col, [])
+            if samples:
+                mean_curve.append(float(np.mean(samples)))
+            else:
+                mean_curve.append(float("nan"))
+        mean_curve_array = np.asarray(mean_curve, dtype=float)
+        if np.isfinite(mean_curve_array).any():
+            ax.plot(
+                axis,
+                mean_curve,
+                color=spec.color,
+                linestyle="--",
+                linewidth=2.5,
+                label="mean",
+            )
+            ax.legend()
+
+        xlabel = spec.axis_label_percent[0] if is_fractional else spec.axis_label_percent[1]
+        if xlabel:
+            ax.set_xlabel(xlabel)
+        ax.set_ylabel(spec.ylabel)
+        if spec.y_min is not None:
+            ax.set_ylim(bottom=spec.y_min)
+        ax.grid(True, alpha=0.2)
+        ax.set_title(spec.title)
+
+        if spec.annotation_column and spec.annotation_column in metrics_df.columns:
+            col_vals = metrics_df[spec.annotation_column].to_numpy(dtype=float)
+            col_vals = col_vals[np.isfinite(col_vals)]
+            if col_vals.size:
+                ax.text(
+                    spec.annotation_position[0],
+                    spec.annotation_position[1],
+                    spec.annotation_label.format(value=float(col_vals.mean())),
+                    transform=ax.transAxes,
+                    ha="right",
+                    va="bottom",
+                    fontsize=10,
+                    bbox={"facecolor": "white", "alpha": 0.6, "edgecolor": "none"},
+                )
+        plt.show()
+
+        results[spec.prefix] = {
+            "columns": cols,
+            "levels": levels,
+            "values": finite_vals,
+            "axis_values": axis,
+            "is_fractional": is_fractional,
+            "mean_curve": mean_curve,
+        }
+
+    return results
+
 
 def _compute_bipartite_layout(
     G: "nx.Graph",
