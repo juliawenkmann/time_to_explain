@@ -159,6 +159,7 @@ class HawkesExp(DatasetRecipe):
             negative_etype=-1,
             num_nodes=20,
             node_feat_dim=8,
+            bipartite=False,
             seed=42,
             baseline_scale=1.0,
         )
@@ -333,6 +334,7 @@ class HawkesExp(DatasetRecipe):
             "config": cfg,
             "node_feat_dim": d,
             "edge_feat_dim": 1 if include_etype else 0,
+            "bipartite": bool(cfg.get("bipartite", False)),
         }
         return {
             "interactions": df,

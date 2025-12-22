@@ -1,0 +1,20 @@
+{
+  "name": "pg",
+  "adapter": "pg",
+  "args": {
+    "explanation_level": "event",
+    "results_dir": "resources/results",
+    "debug_mode": false,
+    "threshold_num": 50,
+    "train_epochs": 10,
+    "explainer_ckpt_dir": "resources/explainer/pg_explainer",
+    "reg_coefs": [
+      0.001,
+      0.0
+    ],
+    "batch_size": 64,
+    "lr": 0.001,
+    "cache": true,
+    "alias": "pg"
+  }
+}

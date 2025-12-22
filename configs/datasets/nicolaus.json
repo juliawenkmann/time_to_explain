@@ -1,0 +1,14 @@
+{
+  "num_nodes": 40,
+  "horizon": 200.0,
+  "num_houses": 90,
+  "house_dt": 1.0,
+  "house_gap": 0.8,
+  "noise_pairs_per_house": 14,
+  "noise_rate": 1.0,
+  "node_feat_dim": 8,
+  "make_edge_features": true,
+  "directed": false,
+  "bipartite": false,
+  "seed": 21
+}

@@ -4,8 +4,121 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import TransformerEncoderLayer
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from torch_scatter import scatter
-from utils import get_null_distribution
+_torch_scatter = None
+_scatter_supports_cuda = False
+
+
+def _scatter_fallback(src, index, dim=-1, dim_size=None, reduce="sum"):
+    if src.device.type not in ("cpu", "cuda"):
+        return _scatter_fallback(
+            src.detach().cpu(),
+            index.detach().cpu(),
+            dim=dim,
+            dim_size=dim_size,
+            reduce=reduce,
+        ).to(src.device)
+    if dim_size is None:
+        dim_size = int(index.max().item()) + 1 if index.numel() > 0 else 0
+    out_shape = list(src.shape)
+    out_shape[dim] = dim_size
+    device = src.device
+    dtype = src.dtype
+    if index.device != device:
+        index = index.to(device)
+    if reduce in ("max", "amax"):
+        out = torch.full(out_shape, -torch.inf, device=device, dtype=dtype)
+        try:
+            out = out.scatter_reduce(dim, index, src, reduce="amax", include_self=True)
+        except NotImplementedError:
+            return _scatter_fallback(
+                src.detach().cpu(),
+                index.detach().cpu(),
+                dim=dim,
+                dim_size=dim_size,
+                reduce=reduce,
+            ).to(src.device)
+        out = out.masked_fill(out == -torch.inf, 0)
+    elif reduce in ("mean", "mean"):
+        out = torch.zeros(out_shape, device=device, dtype=dtype)
+        try:
+            out = out.scatter_reduce(dim, index, src, reduce="sum", include_self=False)
+        except NotImplementedError:
+            return _scatter_fallback(
+                src.detach().cpu(),
+                index.detach().cpu(),
+                dim=dim,
+                dim_size=dim_size,
+                reduce=reduce,
+            ).to(src.device)
+        count = torch.zeros(out_shape, device=device, dtype=dtype)
+        ones = torch.ones_like(src)
+        try:
+            count = count.scatter_reduce(dim, index, ones, reduce="sum", include_self=False)
+        except NotImplementedError:
+            return _scatter_fallback(
+                src.detach().cpu(),
+                index.detach().cpu(),
+                dim=dim,
+                dim_size=dim_size,
+                reduce=reduce,
+            ).to(src.device)
+        out = out / (count + 1e-12)
+    else:  # sum
+        out = torch.zeros(out_shape, device=device, dtype=dtype)
+        try:
+            out = out.scatter_reduce(dim, index, src, reduce="sum", include_self=False)
+        except NotImplementedError:
+            return _scatter_fallback(
+                src.detach().cpu(),
+                index.detach().cpu(),
+                dim=dim,
+                dim_size=dim_size,
+                reduce=reduce,
+            ).to(src.device)
+    return out
+
+
+def _detect_scatter_cuda_support():
+    if _torch_scatter is None or not torch.cuda.is_available():
+        return False
+    try:
+        src = torch.tensor([1.0], device="cuda")
+        index = torch.tensor([0], device="cuda")
+        _torch_scatter(src, index, dim=0, dim_size=1, reduce="sum")
+        return True
+    except Exception:
+        return False
+
+
+try:
+    from torch_scatter import scatter as _torch_scatter  # type: ignore
+    _scatter_supports_cuda = _detect_scatter_cuda_support()
+except ImportError:  # lightweight fallback for environments without torch_scatter
+    _torch_scatter = None
+    _scatter_supports_cuda = False
+
+
+def scatter(src, index, dim=-1, dim_size=None, reduce="sum"):
+    global _scatter_supports_cuda
+    if _torch_scatter is None:
+        return _scatter_fallback(src, index, dim=dim, dim_size=dim_size, reduce=reduce)
+    if src.device.type not in ("cpu", "cuda"):
+        return _scatter_fallback(src, index, dim=dim, dim_size=dim_size, reduce=reduce)
+    if src.is_cuda:
+        if not _scatter_supports_cuda:
+            return _scatter_fallback(src, index, dim=dim, dim_size=dim_size, reduce=reduce)
+        try:
+            return _torch_scatter(src, index, dim=dim, dim_size=dim_size, reduce=reduce)
+        except Exception:
+            _scatter_supports_cuda = False
+            return _scatter_fallback(src, index, dim=dim, dim_size=dim_size, reduce=reduce)
+    return _torch_scatter(src, index, dim=dim, dim_size=dim_size, reduce=reduce)
+try:
+    from .null_model import get_null_distribution  # type: ignore
+except Exception:
+    def get_null_distribution(data_name=None):
+        # Fallback: empty/null distribution
+        return {}
 
 class Attention(nn.Module) :
     def __init__(self, input_dim, hid_dim):

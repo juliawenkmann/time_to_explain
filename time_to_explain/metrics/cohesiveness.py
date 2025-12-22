@@ -50,6 +50,43 @@ def _ensure_2xn_or_nx2_edges(arr: Any) -> Tuple[np.ndarray, np.ndarray]:
     return np.asarray(src).astype(np.int64), np.asarray(dst).astype(np.int64)
 
 
+def _dataset_to_frame(dataset: Any):
+    try:
+        import pandas as pd
+    except Exception:
+        return None
+    if dataset is None:
+        return None
+    if isinstance(dataset, pd.DataFrame):
+        return dataset
+    if isinstance(dataset, dict):
+        for key in ("interactions", "events"):
+            if key in dataset and isinstance(dataset[key], pd.DataFrame):
+                return dataset[key]
+    for attr in ("interactions", "events"):
+        val = getattr(dataset, attr, None)
+        if isinstance(val, pd.DataFrame):
+            return val
+    return None
+
+
+def _normalize_candidate_indices(candidate: Sequence[int], n_rows: int) -> np.ndarray:
+    idx = np.asarray(candidate, dtype=np.int64).copy()
+    if idx.size == 0:
+        return idx
+    if idx.max() >= n_rows:
+        idx = idx - 1
+    elif idx.min() >= 1 and idx.max() <= n_rows:
+        idx = idx - 1
+    return np.clip(idx, 0, max(0, n_rows - 1))
+
+
+def _column_values(df, idx: np.ndarray, preferred: str, fallback_idx: int) -> np.ndarray:
+    if hasattr(df, "columns") and preferred in df.columns:
+        return df.iloc[idx][preferred].to_numpy()
+    return df.iloc[idx, fallback_idx].to_numpy()
+
+
 def _resolve_times_and_endpoints(
     context: ExplanationContext,
     *,
@@ -57,6 +94,7 @@ def _resolve_times_and_endpoints(
     get_edge_endpoints: Optional[Callable[[ExplanationContext, ExplanationResult], Tuple[Sequence[int], Sequence[int]]]] = None,
     edge_time_key: Optional[str] = None,
     candidate_endpoints_key: Optional[str] = None,
+    dataset: Any | None = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Resolve arrays for candidate-edge times and endpoints, aligned to result.importance_edges:
@@ -115,6 +153,17 @@ def _resolve_times_and_endpoints(
                 full_src, full_dst = _ensure_2xn_or_nx2_edges(payload[key])
                 src_arr, dst_arr = full_src[cand_idx], full_dst[cand_idx]
                 break
+
+    # --- Fallback: derive from dataset interactions by candidate_eidx ---
+    if ("candidate_eidx" in payload) and (times_arr is None or src_arr is None or dst_arr is None):
+        df = _dataset_to_frame(dataset)
+        if df is not None and len(df) > 0:
+            idx = _normalize_candidate_indices(payload["candidate_eidx"], len(df))
+            if times_arr is None:
+                times_arr = _column_values(df, idx, "ts", 2).astype(float)
+            if src_arr is None or dst_arr is None:
+                src_arr = _column_values(df, idx, "u", 0).astype(np.int64)
+                dst_arr = _column_values(df, idx, "i", 1).astype(np.int64)
 
     # Final checks
     if times_arr is None or src_arr is None or dst_arr is None:
@@ -214,6 +263,14 @@ class CohesivenessMetric(BaseMetric):
         imp = _to_array(result.importance_edges)
         n_edges = int(imp.size)
 
+        if context.subgraph and context.subgraph.payload is not None:
+            payload = context.subgraph.payload
+            cand = payload.get("candidate_eidx")
+            if cand is None and result.extras:
+                cand = result.extras.get("candidate_eidx")
+            if cand is not None and "candidate_eidx" not in payload:
+                payload["candidate_eidx"] = cand
+
         # Resolve times and endpoints for candidate edges
         try:
             times_all, src_all, dst_all = _resolve_times_and_endpoints(
@@ -222,6 +279,7 @@ class CohesivenessMetric(BaseMetric):
                 get_edge_endpoints=self.get_edge_endpoints,
                 edge_time_key=self.edge_time_key,
                 candidate_endpoints_key=self.candidate_endpoints_key,
+                dataset=getattr(self, "dataset", None),
             )
         except Exception as e:
             # Cannot compute without times and endpoints
@@ -250,6 +308,24 @@ class CohesivenessMetric(BaseMetric):
                 context_fp=context.fingerprint(),
                 extras={"reason": "no_candidate_edges", "n_importance": 0},
             )
+
+        n_edges = min(n_edges, len(times_all), len(src_all), len(dst_all))
+        if n_edges == 0:
+            missing_vals = {key: float("nan") for key in getattr(self, "output_keys", [])}
+            return MetricResult(
+                name=self.name,
+                values=missing_vals,
+                direction=self.direction.value,
+                run_id=context.run_id,
+                explainer=result.explainer,
+                context_fp=context.fingerprint(),
+                extras={"reason": "no_aligned_edges", "n_importance": 0},
+            )
+
+        imp = imp[:n_edges]
+        times_all = times_all[:n_edges]
+        src_all = src_all[:n_edges]
+        dst_all = dst_all[:n_edges]
 
         # Rank order once (shared across evaluation points)
         order = _rank_order(imp, normalize=self.normalize, by=self.rank_by)

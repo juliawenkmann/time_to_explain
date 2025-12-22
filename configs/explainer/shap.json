@@ -1,0 +1,13 @@
+{
+  "name": "shap",
+  "adapter": "shap",
+  "args": {
+    "explanation_level": "event",
+    "results_dir": "resources/results",
+    "debug_mode": false,
+    "num_samples": 64,
+    "random_seed": null,
+    "score_fn": "shap_score_fn",
+    "alias": "shap"
+  }
+}

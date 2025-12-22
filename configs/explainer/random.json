@@ -1,0 +1,8 @@
+{
+  "name": "random",
+  "adapter": "random",
+  "args": {
+    "alias": "random",
+    "seed": null
+  }
+}

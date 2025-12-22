@@ -1,0 +1,9 @@
+{
+  "name": "gnn",
+  "adapter": "gnn",
+  "args": {
+    "alias": "gnn",
+    "epochs": 100,
+    "lr": 0.01
+  }
+}

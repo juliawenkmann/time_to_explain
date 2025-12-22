@@ -1,309 +1,237 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+import sys
+from typing import List
 
-import torch
+import numpy as np
 
-from submodules.explainer.CoDy.cody.embedding import DynamicEmbedding, StaticEmbedding
-from submodules.explainer.CoDy.cody.explainer.baseline.pgexplainer import FactualExplanation, TPGExplainer
-from submodules.explainer.CoDy.cody.explainer.baseline.tgnnexplainer import TGNNExplainer, TGNNExplainerExplanation
-from submodules.explainer.CoDy.cody.explainer.cody import CoDy
-from submodules.explainer.CoDy.cody.explainer.greedy import CounterFactualExample, GreedyCFExplainer
-
-from time_to_explain.core.registries import register_explainer
-from time_to_explain.core.types import Explanation, ExplanationResult, ExplanationType
-from time_to_explain.explainer.base import BaseExplainer
-
-REQUIRED_WRAPPER_ATTRS = (
-    "initialize",
-    "get_candidate_events",
-    "predict",
-    "compute_edge_probabilities",
-    "reset_model",
-)
+from connector import TGNNWrapper
+from constants import EXPLAINED_EVENT_MEMORY_LABEL, COL_ID
+from cody_base import Explainer, CounterFactualExample, calculate_prediction_delta, TreeNode
+from selection import SelectionPolicy, LocalEventImpactSelectionPolicy
 
 
-def _resolve_explainer_wrapper(model):
-    candidate = None
-    if hasattr(model, "raw"):
-        raw = model.raw()
-        candidate = raw
-    if candidate is None:
-        candidate = getattr(model, "wrapper", model)
-    if callable(candidate):
-        candidate = candidate()
-
-    missing = [attr for attr in REQUIRED_WRAPPER_ATTRS if not hasattr(candidate, attr)]
-    if missing:
-        raise TypeError(
-            "Explainer requires wrapper exposing methods: "
-            f"{', '.join(REQUIRED_WRAPPER_ATTRS)}. Missing: {', '.join(missing)}"
-        )
-    return candidate
+def find_best_non_counterfactual_example(root_node: CoDyTreeNode) -> CoDyTreeNode:
+    """
+        Breadth-first search for explanation that comes closest to counterfactual example
+    """
+    best_example = root_node
+    nodes_to_visit = root_node.children.copy()
+    while len(nodes_to_visit) != 0:
+        explored_node = nodes_to_visit.pop()
+        if explored_node.prediction is not None:
+            if (calculate_prediction_delta(best_example.original_prediction, best_example.prediction) <
+                    calculate_prediction_delta(explored_node.original_prediction, explored_node.prediction)):
+                best_example = explored_node
+        nodes_to_visit.extend(explored_node.children.copy())
+    return best_example
 
 
-def _select_embedding(name: str, dataset, wrapper) -> Any:
-    if name == "dynamic":
-        return DynamicEmbedding(dataset, wrapper)
-    return StaticEmbedding(dataset, wrapper)
+class CoDyTreeNode(TreeNode):
+    parent: CoDyTreeNode
+    children: List[CoDyTreeNode]
+    number_of_selections: int
+    is_counterfactual: bool
+    edge_id: int
+    sampling_rank: int
+    prediction: float | None
 
-
-def _explanation_from_factual(event: int, factual: FactualExplanation) -> Explanation:
-    metadata = {
-        "original_score": factual.original_score,
-        "candidate_size": factual.statistics.get("candidate_size"),
-    }
-    metadata.update({f"stat.{k}": v for k, v in factual.statistics.items()})
-    return Explanation(
-        event_id=event,
-        edge_ids=list(map(int, factual.event_ids)),
-        edge_importance=list(map(float, factual.event_importances)),
-        type=ExplanationType.FACTUAL,
-        metadata=metadata,
-    )
-
-
-def _explanation_from_counterfactual(cf: CounterFactualExample) -> Explanation:
-    metadata = {
-        "original_prediction": cf.original_prediction,
-        "counterfactual_prediction": cf.counterfactual_prediction,
-        "achieves_counterfactual": cf.achieves_counterfactual_explanation,
-    }
-    return Explanation(
-        event_id=cf.explained_event_id,
-        edge_ids=list(map(int, cf.event_ids)),
-        edge_importance=list(map(float, cf.get_absolute_importances() or [])),
-        type=ExplanationType.COUNTERFACTUAL,
-        metadata=metadata,
-    )
-
-
-class PGExplainerAdapter(BaseExplainer):
-    def __init__(self, config: dict[str, Any] | None = None):
-        cfg = config or {}
-        super().__init__(name="pgexplainer", alias=cfg.get("alias"), config=cfg)
-        self.embedding: Any | None = None
-        self.impl: TPGExplainer | None = None
-
-    def setup(self, model, dataset):
-        super().setup(model, dataset)
-        wrapper = _resolve_explainer_wrapper(model)
-        embedding_type = self.config.get("embedding", "static").lower()
-        self.embedding = _select_embedding(embedding_type, dataset, wrapper)
-        device = self.config.get("device", getattr(wrapper, "device", "cpu"))
-        hidden_dim = int(self.config.get("hidden_dimension", 128))
-        self.impl = TPGExplainer(wrapper, self.embedding, device=device, hidden_dimension=hidden_dim)
-
-        checkpoint = self.config.get("checkpoint")
-        if checkpoint:
-            state_dict = torch.load(checkpoint, map_location=device)
-            self.impl.explainer.load_state_dict(state_dict)
-            self._is_trained = True
-
-    def requires_training(self) -> bool:
-        return True
-
-    def fit(self, **kwargs: Any) -> None:
-        if not self.model or not self.impl:
-            raise RuntimeError("Explainer not initialized")
-        wrapper = _resolve_explainer_wrapper(self.model)
-        fit_cfg = {**{"epochs": 100, "learning_rate": 1e-4, "batch_size": 32}, **kwargs}
-        out_dir = Path(fit_cfg.get("output_dir", "artifacts/pgexplainer"))
-        out_dir.mkdir(parents=True, exist_ok=True)
-        train_event_ids = fit_cfg.get("train_event_ids")
-        self.impl.train(
-            epochs=int(fit_cfg["epochs"]),
-            learning_rate=float(fit_cfg["learning_rate"]),
-            batch_size=int(fit_cfg["batch_size"]),
-            model_name=self.model.name,
-            save_directory=str(out_dir),
-            train_event_ids=train_event_ids,
-        )
-        self._is_trained = True
-
-    def explain(self, context) -> ExplanationResult:
-        if not self.impl:
-            raise RuntimeError("PGExplainer not initialised. Call setup first.")
-        factual = self.impl.explain(context.event_id)
-        primary = _explanation_from_factual(context.event_id, factual)
-        result = ExplanationResult(
-            event_id=context.event_id,
-            explainer_name=self.alias,
-            primary=primary,
-            raw=factual,
-            timings=factual.timings,
-            statistics=factual.statistics,
-        )
-        return result
-
-
-class TGNNExplainerAdapter(BaseExplainer):
-    def __init__(self, config: dict[str, Any] | None = None):
-        cfg = config or {}
-        super().__init__(name="tgnnexplainer", alias=cfg.get("alias"), config=cfg)
-        self.pgexplainer: TPGExplainer | None = None
-        self.impl: TGNNExplainer | None = None
-
-    def setup(self, model, dataset):
-        super().setup(model, dataset)
-        wrapper = _resolve_explainer_wrapper(model)
-        embedding_type = self.config.get("embedding", "static")
-        embedding = _select_embedding(embedding_type, dataset, wrapper)
-        device = self.config.get("device", getattr(wrapper, "device", "cpu"))
-        hidden_dim = int(self.config.get("hidden_dimension", 128))
-        self.pgexplainer = TPGExplainer(wrapper, embedding, device=device, hidden_dimension=hidden_dim)
-        checkpoint = self.config.get("pgexplainer_checkpoint")
-        if checkpoint:
-            state_dict = torch.load(checkpoint, map_location=device)
-            self.pgexplainer.explainer.load_state_dict(state_dict)
-            self.pgexplainer.explainer.eval()
-            self._is_trained = True
-
-        results_dir = Path(self.config.get("results_dir", "artifacts/tgnnexplainer/results"))
-        results_dir.mkdir(parents=True, exist_ok=True)
-        mcts_dir = Path(self.config.get("mcts_dir", results_dir / "mcts"))
-        mcts_dir.mkdir(parents=True, exist_ok=True)
-        self.impl = TGNNExplainer(
-            wrapper,
-            embedding,
-            self.pgexplainer,
-            results_dir=str(results_dir),
-            device=device,
-            rollout=int(self.config.get("rollout", 20)),
-            min_atoms=int(self.config.get("min_atoms", 1)),
-            c_puct=float(self.config.get("c_puct", 10.0)),
-            mcts_saved_dir=str(mcts_dir),
-            save_results=bool(self.config.get("save_results", True)),
-        )
-
-    def requires_training(self) -> bool:
-        return False
-
-    def explain(self, context) -> ExplanationResult:
-        if not self.impl:
-            raise RuntimeError("TGNNExplainer not initialised. Call setup first.")
-        explanation: TGNNExplainerExplanation = self.impl.explain(context.event_id)
-        if explanation.results:
-            top_candidate = max(explanation.results, key=lambda item: item["prediction"])
-            primary = Explanation(
-                event_id=context.event_id,
-                edge_ids=list(map(int, top_candidate["event_ids_in_explanation"])),
-                metadata={
-                    "best_prediction": explanation.best_prediction,
-                    "original_prediction": explanation.original_prediction,
-                },
-                type=ExplanationType.COUNTERFACTUAL,
-            )
+    def __init__(self, edge_id: int, parent: CoDyTreeNode | None, original_prediction: float, sampling_rank: int,
+                 alpha: float = 2/3):
+        super().__init__(edge_id, parent, original_prediction)
+        self.sampling_rank = sampling_rank
+        self.number_of_selections: int = 1
+        if not 0 <= alpha <= 1:
+            raise ValueError("alpha must be in [0, 1]")
+        self.alpha = alpha
+        if self.parent is None:
+            self.depth = 0
         else:
-            primary = Explanation(event_id=context.event_id, edge_ids=[], type=ExplanationType.COUNTERFACTUAL)
+            self.depth = self.parent.depth + 1
 
-        candidates: list[Explanation] = []
-        for item in explanation.results:
-            candidates.append(
-                Explanation(
-                    event_id=context.event_id,
-                    edge_ids=list(map(int, item["event_ids_in_explanation"])),
-                    metadata={"prediction": item["prediction"]},
-                    type=ExplanationType.COUNTERFACTUAL,
-                )
-            )
+    def _calculate_score(self):
+        """
+        Calculate the search score which balances exploration with exploitation
+        """
+        exploration_score = np.sqrt(np.log(self.parent.number_of_selections) / self.number_of_selections)
+        return self.alpha * self.exploitation_score + (1-self.alpha) * exploration_score
 
-        result = ExplanationResult(
-            event_id=context.event_id,
-            explainer_name=self.alias,
-            primary=primary,
-            candidates=candidates,
-            raw=explanation,
-            timings=explanation.timings,
-            statistics=explanation.statistics,
-        )
-        return result
+    def select_next_leaf(self, max_depth: int) -> CoDyTreeNode:
+        """
+        Select the next leaf node for expansion
+        @param max_depth: Maximum depth at which to search for leaf nodes
+        @return: Leaf node to expand
+        """
+        if self.is_leaf():
+            return self
+        if self.depth == max_depth:
+            self.max_expansion_reached = True
+            if self.parent is not None:
+                self.parent._check_max_expanded()
+                return self.parent.select_next_leaf(max_depth)
+        selected_child = None
+        best_score = 0
+        candidate_children = [child for child in self.children if not (child.is_counterfactual or
+                                                                       child.max_expansion_reached)]
+        if max_depth == self.depth - 1:
+            # If max depth is reached in the next level only consider children that can be directly expanded, otherwise
+            #  the max depth requirement would be violated
+            for child in self.children:
+                child.max_expansion_reached = True
+            candidate_children = [child for child in self.children if not child.expanded]
+        for child in candidate_children:
+            child_score = child._calculate_score()
+            if child_score > best_score:
+                best_score = child_score
+                selected_child = child
+        if selected_child is None:  # This means that there are no candidate children -> return oneself
+            if self.expanded and self.parent is not None:
+                self.max_expansion_reached = True
+                self.parent._check_max_expanded()  # When no selection is possible the node is fully expanded
+                return self.parent.select_next_leaf(max_depth)
+            return self
+        if not selected_child.expanded:
+            # If a node that has not yet been expanded is selected then select the node from the unexpanded children
+            # with the lowest sampling rank
+            unexpanded_children = [child for child in self.children if not child.expanded]
+            selected_child = min(unexpanded_children, key=lambda node: node.sampling_rank)
+        return selected_child.select_next_leaf(max_depth)
 
+    def expansion_backpropagation(self):
+        """
+        Propagate the information that a node is selected backwards and update scores
+        """
+        self.number_of_selections += 1
+        if not self.is_leaf():
+            if len(self.children) > 0:
+                self.exploitation_score = max(0.0,
+                                              (calculate_prediction_delta(self.original_prediction, self.prediction) /
+                                               abs(self.original_prediction)))
+                expanded_children = [child for child in self.children if child.expanded]
+                if len(expanded_children) > 0:
+                    selections_counter = self.number_of_selections
+                    self.exploitation_score = self.exploitation_score * self.number_of_selections
+                    for child in expanded_children:
+                        self.exploitation_score += child.exploitation_score * child.number_of_selections
+                        selections_counter += child.number_of_selections
+                    self.exploitation_score = self.exploitation_score / selections_counter
 
-class CoDyExplainerAdapter(BaseExplainer):
-    def __init__(self, config: dict[str, Any] | None = None):
-        cfg = config or {}
-        super().__init__(name="cody", alias=cfg.get("alias"), config=cfg)
-        self.impl: CoDy | None = None
-
-    def setup(self, model, dataset):
-        super().setup(model, dataset)
-        wrapper = _resolve_explainer_wrapper(model)
-        self.impl = CoDy(
-            wrapper,
-            candidates_size=int(self.config.get("candidates_size", 75)),
-            selection_policy=self.config.get("selection_policy", "recent"),
-            max_steps=int(self.config.get("max_steps", 200)),
-            verbose=bool(self.config.get("verbose", False)),
-            approximate_predictions=bool(self.config.get("approximate_predictions", True)),
-            alpha=float(self.config.get("alpha", 2 / 3)),
-        )
-
-    def explain(self, context) -> ExplanationResult:
-        if not self.impl:
-            raise RuntimeError("CoDy explainer not initialised. Call setup first.")
-        cf_example = self.impl.explain(context.event_id)
-        primary = _explanation_from_counterfactual(cf_example)
-        candidate_ids = primary.edge_ids
-        metadata = {"candidate_ids": candidate_ids}
-        result = ExplanationResult(
-            event_id=context.event_id,
-            explainer_name=self.alias,
-            primary=primary,
-            raw=cf_example,
-            statistics=metadata,
-        )
-        return result
-
-
-class GreedyCFExplainerAdapter(BaseExplainer):
-    def __init__(self, config: dict[str, Any] | None = None):
-        cfg = config or {}
-        super().__init__(name="greedycf", alias=cfg.get("alias"), config=cfg)
-        self.impl: GreedyCFExplainer | None = None
-
-    def setup(self, model, dataset):
-        super().setup(model, dataset)
-        wrapper = _resolve_explainer_wrapper(model)
-        self.impl = GreedyCFExplainer(wrapper)
-
-    def explain(self, context) -> ExplanationResult:
-        if not self.impl:
-            raise RuntimeError("GreedyCF explainer not initialised. Call setup first.")
-        cf_example = self.impl.explain(context.event_id)
-        primary = _explanation_from_counterfactual(cf_example)
-        return ExplanationResult(
-            event_id=context.event_id,
-            explainer_name=self.alias,
-            primary=primary,
-            raw=cf_example,
-        )
+        if self.parent is not None:
+            self.parent.expansion_backpropagation()
 
 
-@register_explainer("pgexplainer")
-def build_pgexplainer(cfg: dict[str, Any], model, dataset):
-    explainer = PGExplainerAdapter(config=cfg)
-    explainer.setup(model, dataset)
-    return explainer
+class CoDy(Explainer):
 
+    def __init__(self, tgnn_wrapper: TGNNWrapper, candidates_size: int = 75, selection_policy: str = 'recent',
+                 max_steps: int = 200, verbose: bool = False, approximate_predictions: bool = True,
+                 alpha: float = 2/3):
+        super().__init__(tgnn_wrapper, selection_policy, candidates_size=candidates_size, sample_size=candidates_size,
+                         verbose=verbose, approximate_predictions=approximate_predictions)
+        self.max_steps = max_steps
+        self.known_states = {}
+        if not 0 <= alpha <= 1:
+            raise ValueError("alpha must be in [0, 1]")
+        self.alpha = alpha
 
-@register_explainer("tgnnexplainer")
-def build_tgnnexplainer(cfg: dict[str, Any], model, dataset):
-    explainer = TGNNExplainerAdapter(config=cfg)
-    explainer.setup(model, dataset)
-    return explainer
+    def _run_node_expansion(self, explained_edge_id: int, node_to_expand: CoDyTreeNode, sampler: SelectionPolicy):
+        edge_ids_to_exclude = node_to_expand.get_parent_ids()
+        prediction = self.calculate_subgraph_prediction(candidate_events=sampler.subgraph[COL_ID].to_numpy(),
+                                                        cf_example_events=edge_ids_to_exclude,
+                                                        explained_event_id=explained_edge_id,
+                                                        candidate_event_id=node_to_expand.edge_id,
+                                                        memory_label=EXPLAINED_EVENT_MEMORY_LABEL,
+                                                        original_prediction=node_to_expand.original_prediction)
 
+        self._expand_node(explained_edge_id, node_to_expand, prediction, sampler)
 
-@register_explainer("cody")
-def build_cody(cfg: dict[str, Any], model, dataset):
-    explainer = CoDyExplainerAdapter(config=cfg)
-    explainer.setup(model, dataset)
-    return explainer
+    def _expand_node(self, explained_edge_id: int, node_to_expand: CoDyTreeNode, prediction: float,
+                     sampler: SelectionPolicy):
+        self.known_states[node_to_expand.hash()] = prediction
 
+        if node_to_expand.is_counterfactual:
+            node_to_expand.expand(prediction, [])
+            return
 
-@register_explainer("greedycf")
-def build_greedycf(cfg: dict[str, Any], model, dataset):
-    explainer = GreedyCFExplainerAdapter(config=cfg)
-    explainer.setup(model, dataset)
-    return explainer
+        edge_ids_to_exclude = node_to_expand.get_parent_ids()
+        ranked_edge_ids = sampler.rank_subgraph(base_event_id=explained_edge_id,
+                                                excluded_events=np.array(edge_ids_to_exclude))
+        children = []
+        for rank, edge_id in enumerate(ranked_edge_ids):
+            new_child = CoDyTreeNode(edge_id, node_to_expand, node_to_expand.original_prediction, rank,
+                                     alpha=self.alpha)
+            children.append(new_child)
+        node_to_expand.expand(prediction, children)
+        for new_child in children:
+            if new_child.hash() in self.known_states.keys():
+                self._expand_node(explained_edge_id, new_child, self.known_states[new_child.hash()], sampler)
+
+    def explain(self, explained_event_id: int) -> CounterFactualExample:
+        """
+        Explain the prediction of the provided event id with a counterfactual example found by searching possible
+        examples with an adapted 'Monte Carlo' Tree Search
+        @param explained_event_id: The event id that is explained
+        @return: The best CounterFactualExample found for explaining the event
+        """
+        original_prediction, sampler = self.initialize_explanation(explained_event_id)
+        best_cf_example = None
+        step = 0
+        max_depth = sys.maxsize
+        root_node = CoDyTreeNode(explained_event_id, parent=None, sampling_rank=0,
+                                 original_prediction=original_prediction, alpha=self.alpha)
+        self._expand_node(explained_event_id, root_node, original_prediction, sampler)
+
+        if type(sampler) is LocalEventImpactSelectionPolicy:
+            for child in root_node.children:
+                # Expand all children
+                self._run_node_expansion(explained_event_id, child, sampler)
+                if child.is_counterfactual:
+                    if best_cf_example is None:
+                        best_cf_example = child
+                    elif best_cf_example.exploitation_score < child.exploitation_score:
+                        best_cf_example = child
+                    if self.verbose:
+                        self.logger.info(f'Found counterfactual explanation: '
+                                         + str(child.to_cf_example()))
+                sampler.set_event_weight(child.edge_id, child.exploitation_score)
+            if best_cf_example is not None:
+                return best_cf_example.to_cf_example()
+            step += 1
+
+        while step <= self.max_steps:
+            node_to_expand = None
+            while node_to_expand is None:
+                node_to_expand = root_node.select_next_leaf(max_depth)
+                if node_to_expand.depth > max_depth:
+                    node_to_expand.expansion_backpropagation()
+                    continue
+                if node_to_expand == root_node and root_node.expanded:
+                    break  # No nodes are selectable, meaning that we can conclude the search
+                if node_to_expand.hash() in self.known_states.keys():
+                    # Already encountered this combination -> select new combination of events instead
+                    self._expand_node(explained_event_id, node_to_expand, self.known_states[node_to_expand.hash()],
+                                      sampler)
+                    node_to_expand = None
+            if node_to_expand == root_node and root_node.expanded:
+                if self.verbose:
+                    self.logger.info('Search Tree is fully expanded. Concluding search.')
+                break  # No nodes are selectable, meaning that we can conclude the search
+            if self.verbose:
+                self.logger.info(f'Selected node {node_to_expand.edge_id} at depth {node_to_expand.depth}, hash: '
+                                 f'{node_to_expand.hash()}')
+            self._run_node_expansion(explained_event_id, node_to_expand, sampler)
+            if node_to_expand.is_counterfactual:
+                if best_cf_example is None or best_cf_example.depth > node_to_expand.depth:
+                    best_cf_example = node_to_expand
+                elif (best_cf_example.depth == node_to_expand.depth and
+                      best_cf_example.exploitation_score < node_to_expand.exploitation_score):
+                    best_cf_example = node_to_expand
+                max_depth = best_cf_example.depth
+                if self.verbose:
+                    self.logger.info(f'Found counterfactual explanation: ' + str(node_to_expand.to_cf_example()))
+            step += 1
+        if best_cf_example is None:
+            best_cf_example = find_best_non_counterfactual_example(root_node)
+        self.tgnn.remove_memory_backup(EXPLAINED_EVENT_MEMORY_LABEL)
+        self.tgnn.reset_model()
+        self.known_states = {}
+        return best_cf_example.to_cf_example()

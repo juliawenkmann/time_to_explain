@@ -112,6 +112,8 @@ def prepare_dataset(
     explain_indices: Optional[Sequence[int]] = None,
     overwrite: bool = False,
     export_tgn: bool = True,
+    processed_dir: Optional[Path] = None,
+    raw_dir: Optional[Path] = None,
     dry_run: bool = False,
     seed: Optional[int] = 0,
     verbose: bool = True,
@@ -189,27 +191,30 @@ def prepare_dataset(
     if visualize and not export_tgn:
         raise ValueError("Visualization requires export_tgn=True so processed files exist.")
 
-    processed_dir: Optional[Path] = None
+    processed_out: Optional[Path] = None
     if export_tgn:
-        processed_dir = export_tgn_csv(
+        processed_out = export_tgn_csv(
             bundle_prepped,
             dataset_name,
             root_dir=root_dir,
+            processed_dir=processed_dir,
+            raw_dir=raw_dir,
             overwrite=overwrite,
             seed=seed,
             metadata=metadata,
         )
-        summary["processed_dir"] = str(processed_dir)
-        raw_path = (root_dir / "resources" / "datasets" / "raw" / f"{dataset_name}.csv")
+        summary["processed_dir"] = str(processed_out)
+        raw_base = Path(raw_dir) if raw_dir is not None else (root_dir / "resources" / "datasets" / "raw")
+        raw_path = raw_base / f"{dataset_name}.csv"
         summary["raw_path"] = str(raw_path)
 
     if visualize:
         viz_out = Path(visualization_dir) if visualization_dir is not None else None
         if viz_out is None:
-            base = processed_dir if processed_dir is not None else (root_dir / "resources" / "datasets" / "processed" / dataset_name)
+            base = processed_out if processed_out is not None else (root_dir / "resources" / "datasets" / "processed" / dataset_name)
             viz_out = Path(base) / "plots"
         try:
-            from time_to_explain.utils.visualization import visualize_to_files
+            from time_to_explain.visualization import visualize_to_files
         except ModuleNotFoundError as exc:
             raise RuntimeError(
                 "Visualization option requires matplotlib; install it to proceed."

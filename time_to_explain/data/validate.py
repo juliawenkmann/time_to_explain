@@ -16,16 +16,27 @@ def check_wiki_reddit_dataformat(df: pd.DataFrame) -> None:
         assert col in df.columns.to_list()
 
 
-def verify_dataframe_unify(df: pd.DataFrame) -> None:
+def verify_dataframe_unify(df: pd.DataFrame, *, bipartite: bool = True) -> None:
     for col in ["u", "i", "ts", "label", "e_idx", "idx"]:
         assert col in df.columns.to_list()
-    # After reindexing we expect users start at 1 and items continue after users
-    assert df.iloc[:, 0].min() == 1
-    assert df.iloc[:, 0].max() == df.iloc[:, 0].nunique()
-    assert df.iloc[:, 1].min() == df.iloc[:, 0].max() + 1
-    assert df.iloc[:, 1].max() == df.iloc[:, 0].max() + df.iloc[:, 1].nunique()
     assert df["e_idx"].min() == 1
     assert df["e_idx"].max() == len(df)
+    assert df["idx"].min() == 1
+    assert df["idx"].max() == len(df)
+
+    if bipartite:
+        # After reindexing we expect users start at 1 and items continue after users
+        assert df.iloc[:, 0].min() == 1
+        assert df.iloc[:, 0].max() == df.iloc[:, 0].nunique()
+        assert df.iloc[:, 1].min() == df.iloc[:, 0].max() + 1
+        assert df.iloc[:, 1].max() == df.iloc[:, 0].max() + df.iloc[:, 1].nunique()
+    else:
+        # Non-bipartite: users/items share the same ID space.
+        assert df.iloc[:, 0].min() >= 1
+        assert df.iloc[:, 1].min() >= 1
+        nodes = pd.unique(df[["u", "i"]].to_numpy().ravel())
+        assert int(nodes.min()) == 1
+        assert len(nodes) == max(int(df["u"].max()), int(df["i"].max()))
 
 
 def verify_interactions(df: pd.DataFrame) -> pd.DataFrame:

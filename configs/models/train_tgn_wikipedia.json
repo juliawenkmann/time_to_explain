@@ -1,0 +1,46 @@
+{
+  "model_type": "TGN",
+  "datasets": [
+    "wikipedia"
+  ],
+  "python_bin": "python",
+  "dry_run": false,
+  "cuda_visible_devices": null,
+  "runs_root": "resources/models/runs",
+  "resources_models_dir": "resources/models",
+  "resources_datasets_dir": "resources/datasets/processed",
+  "models": {
+    "TGN": {
+      "script": "submodules/models/tgn/train_self_supervised.py",
+      "args": {
+        "data": "{dataset}",
+        "use_memory": true,
+        "prefix": "tgn-attn",
+        "n_runs": 10
+      }
+    },
+    "TGAT": {
+      "script": null,
+      "args": {
+        "data": "{dataset}",
+        "prefix": "tgat-attn",
+        "n_runs": 10
+      }
+    },
+    "GRAPHMIXER": {
+      "script": "submodules/explainer/TempME/learn_base.py",
+      "args": {
+        "base_type": "graphmixer",
+        "data": "{dataset}",
+        "gpu": "0",
+        "bs": 256,
+        "n_epoch": 20,
+        "n_layer": 2,
+        "n_head": 4,
+        "n_degree": 20
+      },
+      "processed_dir": "submodules/explainer/TempME/processed",
+      "params_dir": "submodules/explainer/TempME/params/tgnn"
+    }
+  }
+}

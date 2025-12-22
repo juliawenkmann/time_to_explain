@@ -1,0 +1,16 @@
+{
+  "name": "tempme",
+  "adapter": "tempme",
+  "args": {
+    "explanation_level": "event",
+    "results_dir": "resources/results",
+    "debug_mode": false,
+    "num_motifs_per_node": 20,
+    "motif_length": 3,
+    "motif_max_nodes": 3,
+    "motif_delta": "inf",
+    "score_fn": "tempme_score_fn",
+    "label_fn": null,
+    "alias": "tempme"
+  }
+}

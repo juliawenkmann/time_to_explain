@@ -1,0 +1,14 @@
+{
+  "name": "cody",
+  "adapter": "cody",
+  "args": {
+    "alias": "cody",
+    "selection_policy": "temporal",
+    "candidates_size": 75,
+    "max_steps": 200,
+    "approximate_predictions": true,
+    "alpha": 0.6666667,
+    "batch_size": 256,
+    "verbose": false
+  }
+}

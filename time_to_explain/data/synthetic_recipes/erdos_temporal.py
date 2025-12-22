@@ -17,6 +17,7 @@ class ErdosTemporal(DatasetRecipe):
             rate=0.5,
             positive_block_size=10,
             node_feat_dim=8,
+            bipartite=False,
             seed=42,
         )
 
@@ -63,6 +64,7 @@ class ErdosTemporal(DatasetRecipe):
             "config": cfg,
             "node_feat_dim": d,
             "edge_feat_dim": 1 if edge_features is not None else 0,
+            "bipartite": bool(cfg.get("bipartite", False)),
         }
         return {
             "interactions": df,

@@ -2,6 +2,7 @@ import numpy as np
 import random
 from tqdm import tqdm
 import os.path as osp
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from ..graph import NeighborFinder
@@ -10,8 +11,24 @@ from ...utils.batch_loader import RandEdgeSampler
 degree_dict = {"wikipedia": 20, "reddit": 20, "uci": 30, "mooc": 60, "enron": 30, "canparl": 30, "uslegis": 30}
 
 
+def _resolve_csv_path(data: str) -> Path:
+    project_root = Path(__file__).resolve().parents[3]
+    candidates = [
+        project_root / "resources" / "datasets" / "processed" / f"ml_{data}.csv",
+        Path(osp.join(osp.dirname(osp.realpath(__file__)), "..", f"processed/ml_{data}.csv")),
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(
+        "TempME null-model csv not found. Tried:\n"
+        + "\n".join(f" - {p}" for p in candidates)
+    )
+
+
 def load_data_shuffle(mode, data):
-    g_df = pd.read_csv(osp.join(osp.dirname(osp.realpath(__file__)), '..', 'processed/ml_{}.csv'.format(data)))
+    csv_path = _resolve_csv_path(data)
+    g_df = pd.read_csv(csv_path)
     val_time, test_time = list(np.quantile(g_df.ts, [0.70, 0.85]))
 
     src_l = g_df.u.values
@@ -31,8 +48,9 @@ def load_data_shuffle(mode, data):
     random.seed(2023)
     total_node_set = set(np.unique(np.hstack([g_df.u.values, g_df.i.values])))
     num_total_unique_nodes = len(total_node_set)
-    mask_node_set = set(random.sample(set(src_l[ts_l > val_time]).union(set(dst_l[ts_l > val_time])),
-                                      int(0.1 * num_total_unique_nodes)))
+    future_nodes = set(src_l[ts_l > val_time]).union(set(dst_l[ts_l > val_time]))
+    future_nodes_seq = sorted(future_nodes)
+    mask_node_set = set(random.sample(future_nodes_seq, int(0.1 * num_total_unique_nodes))) if future_nodes_seq else set()
     mask_src_flag = g_df.u.map(lambda x: x in mask_node_set).values
     mask_dst_flag = g_df.i.map(lambda x: x in mask_node_set).values
     none_node_flag = (1 - mask_src_flag) * (1 - mask_dst_flag)
@@ -121,7 +139,7 @@ def pre_processing(ngh_finder, sampler, src, dst, ts, val_e_idx_l, num_neighbors
 
 
 def get_null_distribution(data_name):
-    num_neighbors = degree_dict[data_name]
+    num_neighbors = degree_dict.get(data_name, 20)
     rand_sampler, test_src_l, test_dst_l, test_ts_l, test_label_l, test_e_idx_l, finder = load_data_shuffle(mode="test", data=data_name)
     num_distribution = pre_processing(finder, rand_sampler, test_src_l, test_dst_l, test_ts_l, test_e_idx_l,num_neighbors)
     return num_distribution

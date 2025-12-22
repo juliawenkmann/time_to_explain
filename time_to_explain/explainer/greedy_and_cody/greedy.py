@@ -2,7 +2,7 @@ import sys
 
 import numpy as np
 from constants import COL_ID, EXPLAINED_EVENT_MEMORY_LABEL, CUR_IT_MIN_EVENT_MEM_LBL
-from cody_base import Explainer, CounterFactualExample, calculate_prediction_delta, TreeNode
+from time_to_explain.explainer.greedy_and_cody.cody_base import Explainer, CounterFactualExample, calculate_prediction_delta, TreeNode
 from time_to_explain.explainer.greedy_and_cody.selection import LocalEventImpactSelectionPolicy
 
 

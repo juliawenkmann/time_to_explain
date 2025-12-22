@@ -2,8 +2,16 @@
 from dataclasses import dataclass
 from pathlib import Path
 import hashlib, json, numpy as np, pandas as pd
+import sys
+
 from .types import Subgraph  # your dataclass
-from time_to_explain.explainer.tgnnexplainer.tg_dataset import load_tg_dataset, verify_dataframe_unify
+
+# Ensure vendored tgnnexplainer (under submodules) is importable as `tgnnexplainer`
+_TGNN_VENDOR = Path(__file__).resolve().parents[2] / "submodules" / "explainer" / "tgnnexplainer"
+if str(_TGNN_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TGNN_VENDOR))
+
+from tgnnexplainer.xgraph.dataset.tg_dataset import load_tg_dataset, verify_dataframe_unify
 
 def _file_sha1(p: Path) -> str:
     import hashlib
@@ -36,7 +44,7 @@ class TGEventsDataset:
         return {"name": self.name, "artifacts": dict(items)}
 
     def subgraph_for_event(self, event_idx: int, k_hop=1):
-        from time_to_explain.explainer.tgnnexplainer.utils_dataset import k_hop_temporal_subgraph
+        from tgnnexplainer.xgraph.dataset.utils_dataset import k_hop_temporal_subgraph
         df_sub = k_hop_temporal_subgraph(self.df, num_hops=k_hop, event_idx=event_idx)  # :contentReference[oaicite:14]{index=14}
         # Build Subgraph payload; edge_index list of (u, i)
         nodes = sorted(set(df_sub.u.tolist()) | set(df_sub.i.tolist()))

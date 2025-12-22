@@ -3,7 +3,7 @@ import numpy as np
 from typing import Union
 from pandas import DataFrame
 
-from time_to_explain.explainer.tgnnexplainer.base_explainer_tg import BaseExplainerTG
+from tgnnexplainer.xgraph.method.base_explainer_tg import BaseExplainerTG
 
 
 class AttnExplainerTG(BaseExplainerTG):

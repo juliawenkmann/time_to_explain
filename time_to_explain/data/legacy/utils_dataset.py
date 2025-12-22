@@ -6,6 +6,11 @@ from torch_geometric.data import Data, Dataset
 from pathlib import Path
 import os, sys, subprocess, importlib
 
+# Ensure vendored tgnnexplainer (under submodules) is importable as `tgnnexplainer`
+_TGNN_VENDOR = Path(__file__).resolve().parents[3] / "submodules" / "explainer" / "tgnnexplainer"
+if str(_TGNN_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TGNN_VENDOR))
+
 def resolve_repo_root() -> Path:
     # 1) Respect an env var if you prefer to set it explicitly
     for key in ("PROJECT_ROOT", "REPO_ROOT", "TIME_TO_EXPLAIN_ROOT"):
@@ -40,7 +45,7 @@ print("Using REPO_ROOT / ROOT_DIR:", REPO_ROOT)
 
 
 from time_to_explain.utils.graph import NeighborFinder
-from time_to_explain.explainer.tgnnexplainer.tg_dataset import verify_dataframe_unify
+from tgnnexplainer.xgraph.dataset.tg_dataset import verify_dataframe_unify
 
 class MarginalSubgraphDataset(Dataset):
     """ Collect pair-wise graph data to calculate marginal contribution. """

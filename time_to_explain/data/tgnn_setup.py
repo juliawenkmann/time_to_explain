@@ -13,9 +13,10 @@ This merges/simplifies the pipeline previously split across:
 
 Assumptions
 -----------
-- You have a repository layout like:
-    <ROOT>/tgnnexplainer/xgraph/dataset/data/
-    <ROOT>/tgnnexplainer/xgraph/models/ext/tgat/processed/
+- Default layout uses:
+    <ROOT>/resources/datasets/raw/
+    <ROOT>/resources/datasets/processed/
+- You can override the directories via `data_dir`, `proc_dir`, and `idx_dir`.
 - For simulated datasets (v1, v2) we just download the pre-generated processed files.
 - For real datasets, we convert CSV -> ml_*.csv + .npy feature files following the
   logic found in your provided process.py.
@@ -152,6 +153,8 @@ def generate_explain_index(
     size: int = 500,
     seed: int = 42,
     explain_idx_name: Optional[str] = None,
+    verbose: bool = True,
+    bipartite: Optional[bool] = None,
 ) -> Path:
     """
     Create a CSV listing event indices to be explained.
@@ -160,27 +163,53 @@ def generate_explain_index(
     """
     rng = np.random.default_rng(seed)
     df = pd.read_csv(ml_csv)
-    verify_dataframe_unify(df)
+    if bipartite is None:
+        try:
+            u_max = int(df["u"].max())
+            i_min = int(df["i"].min())
+            bipartite = i_min >= (u_max + 1)
+        except Exception:
+            bipartite = True
 
+    verify_dataframe_unify(df, bipartite=bool(bipartite))
+
+    candidates: np.ndarray
     if dataset_name in {"simulate_v1", "simulate_v2"}:
-        positive_mask = (df["label"] == 1)
+        positive_mask = df["label"] == 1
         candidates = df.loc[positive_mask, "e_idx"].to_numpy()
-        if len(candidates) < size:
-            raise ValueError(f"Not enough positive events to sample {size} indices (have {len(candidates)}).")
-        explain_idxs = rng.choice(candidates, size=size, replace=False)
+        if len(candidates) == 0:
+            candidates = df["e_idx"].to_numpy()
     elif dataset_name in {"wikipedia", "reddit"}:
         e_num = len(df)
         low = int(e_num * 0.70)
-        high = int(e_num * 0.99)
-        explain_idxs = rng.integers(low=low, high=high, size=size)
+        high = max(int(e_num * 0.99), low + 1)
+        candidates = df["e_idx"].to_numpy()[low:high]
+        if len(candidates) == 0:
+            candidates = df["e_idx"].to_numpy()
     else:
-        raise ValueError(f"Unknown dataset for index generation: {dataset_name}")
+        if "label" in df.columns:
+            positives = df.loc[df["label"] > 0, "e_idx"].to_numpy()
+            candidates = positives if len(positives) else df["e_idx"].to_numpy()
+        else:
+            candidates = df["e_idx"].to_numpy()
+
+    if len(candidates) == 0:
+        raise ValueError(f"No candidate events found for dataset '{dataset_name}'.")
+    if size > len(candidates):
+        if verbose:
+            print(
+                f"[{dataset_name}] Requested {size} explain indices, "
+                f"but only {len(candidates)} candidates available. Using all candidates."
+            )
+        size = len(candidates)
+    explain_idxs = rng.choice(candidates, size=size, replace=False)
 
     explain_idxs = sorted(int(x) for x in explain_idxs)
     out_dir = ensure_dir(out_dir)
     out_path = out_dir / (f"{explain_idx_name}.csv" if explain_idx_name else f"{dataset_name}.csv")
     pd.DataFrame({"event_idx": explain_idxs}).to_csv(out_path, index=False)
-    print(f"[{dataset_name}] explain index -> {out_path}")
+    if verbose:
+        print(f"[{dataset_name}] explain index -> {out_path}")
     return out_path
 
 
@@ -202,14 +231,17 @@ def download_all(
     root: Path,
     only: Optional[Sequence[str]] = None,
     force: bool = False,
+    *,
+    data_dir: Optional[Path] = None,
+    proc_dir: Optional[Path] = None,
 ) -> None:
     only = set(x.strip() for x in only) if only else None
 
     def want(name: str) -> bool:
         return (only is None) or (name in only)
 
-    data_dir = root / "resources" /"datasets" / "raw"
-    proc_dir = root / "resources" / "datasets" /  "processed"
+    data_dir = Path(data_dir) if data_dir is not None else (root / "resources" / "datasets" / "raw")
+    proc_dir = Path(proc_dir) if proc_dir is not None else (root / "resources" / "datasets" / "processed")
 
     # Real datasets
     if want("reddit"):
@@ -244,6 +276,9 @@ def setup_tgnn_data(
     do_index: bool = True,
     seed: int = 42,
     index_size: int = 500,
+    data_dir: Optional[os.PathLike] = None,
+    proc_dir: Optional[os.PathLike] = None,
+    idx_dir: Optional[os.PathLike] = None,
 ) -> None:
     """
     One-call pipeline:
@@ -260,11 +295,12 @@ def setup_tgnn_data(
       seed: RNG seed for index sampling
       index_size: how many indices to sample for each dataset
     """
+    root = resolve_root(root)
     print(f"ROOT: {root}")
 
-    data_dir = root / "resources" / "datasets" / "raw"
-    proc_dir = root /  "resources" / "datasets" / "processed"
-    idx_dir = root /  "resources" / "datasets" / "explain_index"
+    data_dir = Path(data_dir) if data_dir is not None else (root / "resources" / "datasets" / "raw")
+    proc_dir = Path(proc_dir) if proc_dir is not None else (root / "resources" / "datasets" / "processed")
+    idx_dir = Path(idx_dir) if idx_dir is not None else (root / "resources" / "datasets" / "explain_index")
     ensure_dir(data_dir)
     ensure_dir(proc_dir)
     ensure_dir(idx_dir)
@@ -274,7 +310,7 @@ def setup_tgnn_data(
         return (only_set is None) or (name in only_set)
 
     # 1) Downloads
-    download_all(root, only=only, force=force)
+    download_all(root, only=only, force=force, data_dir=data_dir, proc_dir=proc_dir)
 
     # 2) Process real datasets
     if do_process:

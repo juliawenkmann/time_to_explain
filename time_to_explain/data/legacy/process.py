@@ -5,6 +5,15 @@ import pandas as pd
 import argparse
 
 from pathlib import Path
+import sys
+
+# Ensure vendored tgnnexplainer (under submodules) is importable as `tgnnexplainer`
+_TGNN_VENDOR = Path(__file__).resolve().parents[3] / "submodules" / "explainer" / "tgnnexplainer"
+if str(_TGNN_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TGNN_VENDOR))
+
+from tgnnexplainer import ROOT_DIR
+from tgnnexplainer.xgraph.dataset.tg_dataset import check_wiki_reddit_dataformat, verify_dataframe_unify
 
 def simulate_dataset_train_flag(df):
     labels = df['label'].to_numpy()
@@ -34,8 +43,6 @@ def reindex(df):
     return df
 
 def run(data_name, out_dir=None):
-    from time_to_explain.explainer.tgnnexplainer.tg_dataset import verify_dataframe_unify, check_wiki_reddit_dataformat
-
     data_dir = ROOT_DIR/'xgraph'/'dataset'/'data'
     data_path = data_dir/f'{data_name}.csv'
 
@@ -98,7 +105,6 @@ def run(data_name, out_dir=None):
 
 
 def process_garden_5():
-    from tgnnexplainer import ROOT_DIR
     data_dir = ROOT_DIR/'xgraph'/'dataset'/'data'
     data_path = data_dir/'garden_5.csv'
     df = pd.read_csv(data_path)

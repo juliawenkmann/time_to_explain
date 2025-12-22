@@ -1,17 +1,48 @@
 # time_to_explain/adapters/tempme_adapter.py
 from __future__ import annotations
 from typing import Any, Dict, Optional, Tuple, List, Union
+from pathlib import Path
+import sys
+import importlib
 
 import torch
 import numpy as np
 
 from ..core.types import BaseExplainer, ExplanationContext, ExplanationResult
+from .tempme_base_adapter import TempMEBaseAdapter
 
-# Your repo should provide these:
-# - TempME / TempME_TGAT with .forward(walks, ts, edge_ids) -> graphlet_importances
-# - .retrieve_explanation(...) or .retrieve_edge_imp(...)
 
-from ..explainer.tempme.tempme import TempME, TempME_TGAT  
+def _load_official_tempme_classes():
+    """
+    Import TempME classes from the official submodule, ensuring its local
+    `utils` package is visible for absolute imports inside the submodule.
+    """
+    tempme_root = Path(__file__).resolve().parents[2] / "submodules" / "explainer" / "TempME"
+    if str(tempme_root) not in sys.path:
+        sys.path.insert(0, str(tempme_root))
+
+    prev_utils = sys.modules.get("utils")
+    try:
+        import submodules.explainer.TempME.utils as tempme_utils
+        sys.modules["utils"] = tempme_utils
+        models_mod = importlib.import_module("submodules.explainer.TempME.models")
+        models_mod = importlib.reload(models_mod)
+        OfficialTempME = models_mod.TempME
+        OfficialTempME_TGAT = models_mod.TempME_TGAT
+    finally:
+        if prev_utils is not None:
+            sys.modules["utils"] = prev_utils
+        else:
+            sys.modules.pop("utils", None)
+
+    return OfficialTempME, OfficialTempME_TGAT
+
+
+def _load_tempme_classes(prefer_official: bool = True):
+    if prefer_official:
+        return _load_official_tempme_classes()
+    from ..explainer.tempme.tempme import TempME, TempME_TGAT  # fallback to local copy
+    return TempME, TempME_TGAT
 
 
 def _to_device(x, device):
@@ -54,6 +85,8 @@ class TempMEExplainer(BaseExplainer):
         dropout_p: float = 0.1,
         if_bern: bool = True,
         device: Optional[Union[str, torch.device]] = None,
+        dataset_name: Optional[str] = None,
+        use_official: bool = True,
         alias: Optional[str] = None,
     ) -> None:
         super().__init__(name="tempme", alias=alias or f"tempme_{base_type}")
@@ -65,6 +98,8 @@ class TempMEExplainer(BaseExplainer):
         self.dropout_p = dropout_p
         self.if_bern = if_bern
         self.device = torch.device(device) if device is not None else None
+        self.dataset_name = dataset_name
+        self.use_official = use_official
 
         self.explainer = None
         self._prepared = False
@@ -73,6 +108,10 @@ class TempMEExplainer(BaseExplainer):
     def prepare(self, *, model: Any, dataset: Any) -> None:
         super().prepare(model=model, dataset=dataset)
 
+        # Wrap canonical TGN/TGAT into TempME-compatible base if needed
+        if not isinstance(model, TempMEBaseAdapter) and not self._looks_like_tempme_base(model):
+            model = TempMEBaseAdapter(model)
+        self.base_wrapper = model
         # Decide device: prefer the base model's device
         if self.device is None:
             try:
@@ -82,12 +121,20 @@ class TempMEExplainer(BaseExplainer):
             except Exception:
                 self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+        if isinstance(dataset, dict) and "dataset_name" in dataset:
+            self.dataset_name = dataset["dataset_name"]
+        data_name = self.dataset_name
+        if data_name is None:
+            raise ValueError("TempMEExplainer requires dataset_name to construct the official TempME model.")
+
+        TempME, TempME_TGAT = _load_tempme_classes(self.use_official)
+
         # Build the TempME module
         if self.base_type == "tgat":
             if TempME_TGAT is None:
                 raise ImportError("TempME_TGAT not found. Ensure it's exported from models.")
             self.explainer = TempME_TGAT(
-                model, data=getattr(self, "data", None),
+                model, data=data_name,
                 out_dim=self.out_dim, hid_dim=self.hid_dim, temp=self.temp,
                 dropout_p=self.dropout_p, device=self.device,
             )
@@ -95,12 +142,14 @@ class TempMEExplainer(BaseExplainer):
             if TempME is None:
                 raise ImportError("TempME not found. Ensure it's exported from models.")
             self.explainer = TempME(
-                model, base_model_type=self.base_type, data=getattr(self, "data", None),
+                model, base_model_type=self.base_type, data=data_name,
                 out_dim=self.out_dim, hid_dim=self.hid_dim, temp=self.temp,
                 if_cat_feature=True, dropout_p=self.dropout_p, device=self.device,
             )
 
         self.explainer = self.explainer.to(self.device)
+        # keep a handle to the wrapper for payload building
+        self.explainer.base_model = self.base_wrapper  # type: ignore[attr-defined]
 
         # Load checkpoint if provided
         if self.checkpoint is not None:
@@ -122,12 +171,23 @@ class TempMEExplainer(BaseExplainer):
         assert self._prepared, "Call .prepare(model=..., dataset=...) before explain()."
 
         # --- Pull payload constructed by the extractor
-        if context.subgraph is None or context.subgraph.payload is None:
-            raise ValueError(
-                "TempMEExplainer expects context.subgraph.payload with the TempME fields. "
-                "Use the TempMEExtractor or build the payload yourself."
-            )
-        payload: Dict[str, Any] = context.subgraph.payload
+        payload: Dict[str, Any] = {}
+        if context.subgraph is not None and context.subgraph.payload is not None:
+            payload = context.subgraph.payload
+        required = {
+            "subgraph_src",
+            "subgraph_tgt",
+            "subgraph_bgd",
+            "walks_src",
+            "walks_tgt",
+            "walks_bgd",
+            "edge_src",
+            "edge_tgt",
+            "edge_bgd",
+        }
+        if not required.issubset(payload.keys()):
+            # minimal on-the-fly payload using the adapter's grab_subgraph (no precomputed HDF5 needed)
+            payload = self._build_minimal_payload(context)
 
         subgraph_src = payload["subgraph_src"]
         subgraph_tgt = payload["subgraph_tgt"]
@@ -145,9 +205,12 @@ class TempMEExplainer(BaseExplainer):
 
         with torch.no_grad():
             # Forward pass to get graphlet importances
-            gimp_src = self.explainer(_to_device(walks_src, self.device), ts_t, _to_device(edge_src, self.device))
-            gimp_tgt = self.explainer(_to_device(walks_tgt, self.device), ts_t, _to_device(edge_tgt, self.device))
-            gimp_bgd = self.explainer(_to_device(walks_bgd, self.device), ts_t, _to_device(edge_bgd, self.device))
+            if self.base_type == "tgat":
+                raise NotImplementedError("TempME_TGAT path not fully supported in the unified runner.")
+            else:
+                gimp_src = self.explainer(_to_device(walks_src, self.device), ts_t, _to_device(edge_src, self.device))
+                gimp_tgt = self.explainer(_to_device(walks_tgt, self.device), ts_t, _to_device(edge_tgt, self.device))
+                gimp_bgd = self.explainer(_to_device(walks_bgd, self.device), ts_t, _to_device(edge_bgd, self.device))
 
             # Convert graphlet importances to edge importances
             if self.base_type == "tgat":
@@ -194,6 +257,11 @@ class TempMEExplainer(BaseExplainer):
             importance_time=None,
             extras={"per_set_importances": per_set, "base_type": self.base_type},
         )
+
+    @staticmethod
+    def _looks_like_tempme_base(model: Any) -> bool:
+        emb = getattr(model, "embedding_module", None)
+        return emb is not None and hasattr(emb, "embedding_update")
 
     # --- helpers ---
     def _normalize_explanation(self, explanation: Any) -> Tuple[Dict[str, List[float]], List[float]]:
@@ -251,3 +319,57 @@ class TempMEExplainer(BaseExplainer):
         }
         importance_edges = torch.cat([e_src, e_tgt, e_bgd], dim=-1).detach().cpu().tolist()
         return per_set, importance_edges
+
+    # --------- minimal payload construction (fallback) ----------
+    def _build_minimal_payload(self, context: ExplanationContext) -> Dict[str, Any]:
+        """
+        Build a lightweight TempME payload from events + ngh_finder without relying on precomputed HDF5.
+        Shapes are chosen to satisfy TempME forward: walks tensors with n_walk=1, len_walk=3.
+        """
+        events = self.dataset["events"] if isinstance(self.dataset, dict) else self.dataset
+        eidx = int(context.target.get("event_idx") or context.target.get("idx") or context.target.get("index"))
+        row = events.iloc[eidx - 1]
+        src = int(row[0]); dst = int(row[1]); ts = float(row[2])
+
+        # sample a negative destination (background) different from dst
+        n_nodes = int(max(events.iloc[:, 0].max(), events.iloc[:, 1].max())) + 1
+        bgd = dst
+        if n_nodes > 1:
+            bgd = (dst + 1) % n_nodes
+
+        # grab 2-hop subgraphs for src/dst/bgd
+        base = getattr(self, "base_wrapper", None)
+        sub_src = base.grab_subgraph([src], [ts])
+        sub_tgt = base.grab_subgraph([dst], [ts])
+        sub_bgd = base.grab_subgraph([bgd], [ts])
+
+        # minimal walks: (node_idx, edge_idx, time_idx, cat_feat, extra)
+        def make_walk(node_id):
+            node_idx = np.array([[[node_id, dst, 0, 0, 0, 0]]])  # shape [1,1,6]
+            edge_idx = np.zeros((1, 1, 3), dtype=np.int64)
+            time_idx = np.zeros((1, 1, 3), dtype=np.float32)
+            cat_feat = np.zeros((1, 1, 1), dtype=np.int64)
+            out_anony = np.zeros((1, 1, 3), dtype=np.int64)
+            return (node_idx, edge_idx, time_idx, cat_feat, out_anony)
+
+        walks_src = make_walk(src)
+        walks_tgt = make_walk(dst)
+        walks_bgd = make_walk(bgd)
+
+        edge_src = np.zeros((1, 1), dtype=np.int64)
+        edge_tgt = np.zeros((1, 1), dtype=np.int64)
+        edge_bgd = np.zeros((1, 1), dtype=np.int64)
+
+        return {
+            "subgraph_src": sub_src,
+            "subgraph_tgt": sub_tgt,
+            "subgraph_bgd": sub_bgd,
+            "walks_src": walks_src,
+            "walks_tgt": walks_tgt,
+            "walks_bgd": walks_bgd,
+            "edge_src": edge_src,
+            "edge_tgt": edge_tgt,
+            "edge_bgd": edge_bgd,
+            "event_idx": eidx,
+            "ts": ts,
+        }

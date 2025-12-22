@@ -1,0 +1,16 @@
+{
+  "name": "grad",
+  "adapter": "grad",
+  "args": {
+    "explanation_level": "event",
+    "results_dir": "resources/results",
+    "debug_mode": false,
+    "cache": true,
+    "method": "integrated",
+    "ig_steps": 32,
+    "abs_attributions": true,
+    "normalize": true,
+    "forward_fn": "grad_forward_fn",
+    "alias": "grad"
+  }
+}

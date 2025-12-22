@@ -13,14 +13,21 @@ for running reproducible experiments from YAML configurations.
    pip install -e .
    ```
 
-2. **Prepare datasets/checkpoints**  
+2. **Prepare data (download/process/index)**
+   ```bash
+   python -m time_to_explain.cli data prepare --only reddit,wikipedia --index-size 500
+   # optional synthetic builds:
+   # python -m time_to_explain.cli data prepare --synthetic erdos_small,hawkes_small --overwrite-synthetic
+   ```
+
+3. **Prepare datasets/checkpoints**  
    Place preprocessed datasets under `resources/processed/<dataset>` and model
    checkpoints under `resources/models/<dataset>` (matching the layout used in
    the original projects).
 
-3. **Run an experiment**
+4. **Run an experiment**
    ```bash
-   ttx-run --config path/to/your_experiment.yaml
+   python -m time_to_explain.cli eval run --config configs/experiments/example.yaml
    ```
    The CLI will instantiate the requested dataset, model, explainers, metrics,
    and sampler, execute explanations for the sampled events, and write results to
@@ -80,6 +87,17 @@ Keys map directly to registry entries (see below).  Any mapping can include an
 
 Additional components can be registered by decorating factories with the
 helpers in `time_to_explain.core.registries` (e.g., `@register_explainer`).
+
+## Pipelines (CLI + Notebooks)
+
+- Call the CLI for reproducible runs:
+  ```
+  python -m time_to_explain.cli eval run --config configs/experiments/example.yaml
+  python -m time_to_explain.cli eval sweep --glob 'configs/experiments/*.yaml'
+  ```
+- Keep notebooks thin: import the helpers in `time_to_explain.pipelines` or the
+  stubs under `notebooks/src/` (`model_loader.py`, `explainer_factory.py`) and
+  reuse them instead of re-writing setup code in each notebook.
 
 ### Training Models & PGExplainer
 

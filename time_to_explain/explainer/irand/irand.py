@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 
 from constants import COL_ID, EXPLAINED_EVENT_MEMORY_LABEL
-from cody_base import Explainer, CounterFactualExample
+from time_to_explain.explainer.greedy_and_cody.cody_base import Explainer, CounterFactualExample
 from connector import TGNNWrapper
 
 

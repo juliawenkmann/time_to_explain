@@ -108,13 +108,20 @@ If we **keep only** the top-ranked edges (drop everything else), how much does t
 ---
 
 ### 5) `acc_auc`
-**Question it answers:** *How consistently does the model’s predicted label remain unchanged as we sparsify according to the explanation?*
+Area under the curve of **prediction match rate** vs. sparsity (0 → 0.3 by default).
+At each sparsity level, keep the top-s fraction of edges, mask the rest, and
+record whether the model’s predicted label matches the unmasked prediction
+(indicator 0/1). The per-level indicators are stored as `acc_auc.acc@s=...`,
+and `acc_auc.auc` is the (optionally normalized) trapezoidal AUC over the grid.
 
-**Procedure (for sparsity \( s \) from 0 up to a chosen cap \( S^\* \), default \(0.3\)):**
-1. Compute the full prediction label \( \hat{y} \) on \( G \).
-2. For each \( s \in [0, S^\*] \):
-   - **keep**: retain the top \( (1-s) \) fraction (or **drop** the top \( s \) fraction if `mode="drop"`),
-   - predict \( \ha
+**Key config:**
+- `s_min`, `s_max`, `num_points`: sparsity grid (fractions in [0, 1], default 0→0.3 with 16 points).
+- `result_as_logit`, `normalize`, `by`: importance ranking knobs (same as fidelity metrics).
+- `label_threshold`: threshold for binarizing scalar outputs when deriving labels.
+- `normalize_auc`: if True (default) divides AUC by span to return [0, 1].
+
+**Outputs:** `acc_auc.acc@s=...` match indicators (floats 0/1) and `acc_auc.auc`
+the AUC of the match curve.
 
 
 ### 6) `cohesiveness`
@@ -146,3 +153,36 @@ For each sparsity level \(s\) (keep the top-\(s\) fraction by importance), form 
 - If fewer than 2 edges are kept (\(m < 2\)), the metric is undefined; we return `NaN`.
 - We normalize by **all ordered pairs** \(m^2 - m\); non-adjacent pairs contribute 0 via the indicator.
 
+---
+
+### 7) `prediction_profile`
+
+**Question it answers:** *How do the model’s predictions evolve as we vary the sparsity of the explanation subgraph?*
+
+**Definition:**
+1. Rank candidate edges by their importance scores (same normalization knobs as the fidelity metrics).
+2. For each configured sparsity level or k-value, build a mask:
+   - `mode="keep"` (default): keep only the top edges, drop everything else.
+   - `mode="drop"`: drop the top edges, keep the remainder.
+3. Evaluate the model under each mask (plus the unmasked subgraph) via `predict_proba_with_mask`.
+
+**Outputs (per level):**
+- `prediction_profile.prediction_full`: score on the unmasked subgraph.
+- `prediction_profile.prediction_keep.@s=0.2` (or `.prediction_drop`): score under the masked subgraph.
+- `prediction_profile.delta_keep.@s=0.2`: signed change `masked - full` (configurable via `include_delta`).
+- `prediction_profile.delta_abs_keep.@s=0.2`: absolute change (if `include_abs_delta=True`).
+- `prediction_profile.label_full` / `prediction_profile.label_keep.@s=...`: predicted class (argmax for multi-class, thresholded for scalar outputs).
+- `prediction_profile.match_keep.@s=...`: indicator (0/1) for whether the masked prediction agrees with the original (helpful for plotting “unchanged prediction” percentages).
+
+**Extras:** Recorded under `metric_details → prediction_profile` in the runner’s JSONL output.
+- Each level stores the achieved sparsity, prediction, deltas, and optionally the actual edge mask and edge list of the subgraph that was fed to the model.
+- Use `store_edge_details=False` or `edge_detail_limit=N` in the metric config if you want to skip (or cap) the per-level edge payload to keep run artifacts compact.
+
+**Key config:**
+- `sparsity_levels` **or** `topk/k`: evaluation grid (fractions in [0,1] or absolute counts).
+- `mode`: `"keep"` or `"drop"`.
+- `result_as_logit`, `normalize`, `by`: forwarded to the ranking helper.
+- `include_delta`, `include_abs_delta`: toggle the delta columns.
+- `label_threshold`: scalar threshold used to binarize scalar outputs when deriving prediction labels (default `0.5`).
+- `emit_match_flags`: set `False` to skip the `match_*` columns when you only need the raw predictions.
+- `store_edge_details`, `store_masks`, `edge_detail_limit`: control how much subgraph metadata gets attached per sparsity level.

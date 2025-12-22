@@ -1,0 +1,12 @@
+{
+  "name": "perturb_one",
+  "adapter": "perturb_one",
+  "args": {
+    "explanation_level": "event",
+    "results_dir": "resources/results",
+    "debug_mode": false,
+    "threshold_num": 50,
+    "cache": true,
+    "alias": "perturb_one"
+  }
+}

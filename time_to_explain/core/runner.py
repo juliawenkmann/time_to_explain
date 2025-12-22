@@ -35,11 +35,17 @@ class EvalConfig:
     save_csv: bool = True
 
 class EvaluationRunner:
-    def __init__(self, *, model: ModelProtocol, dataset: Any, extractor,
-                 explainers: Sequence[BaseExplainer], config: Optional[EvalConfig] = None) -> None:
+    def __init__(self, *, model: ModelProtocol, dataset: Any, extractor: SubgraphExtractorProtocol = None,
+                 explainers: Sequence[BaseExplainer], config: Optional[EvalConfig] = None,
+                 extractor_map: Optional[Dict[str, SubgraphExtractorProtocol]] = None) -> None:
+        """
+        extractor: default extractor used for all explainers (backward compatible)
+        extractor_map: optional mapping explainer.alias|name -> extractor to override per explainer
+        """
         self.model = model
         self.dataset = dataset
         self.extractor = extractor
+        self.extractor_map = extractor_map or {}
         self.explainers = list(explainers)
         self.config = config or EvalConfig()
         set_global_seed(self.config.seed)
@@ -80,6 +86,8 @@ class EvaluationRunner:
         csv_f = open(csv_path, "w", newline="") if self.config.save_csv else None
         csv_writer = None
         csv_header = None
+        total_anchors = len(anchors) if hasattr(anchors, "__len__") else None
+        total_explainers = len(self.explainers)
 
         try:
             for idx, anchor in enumerate(anchors):
@@ -87,24 +95,104 @@ class EvaluationRunner:
                     run_id=run_id, target_kind=anchor.get("target_kind","edge"),
                     target=anchor, window=window, k_hop=k_hop, num_neighbors=num_neighbors
                 )
-                subg = self.extractor.extract(self.dataset, anchor, k_hop=k_hop,
-                                              num_neighbors=num_neighbors, window=window)
-                ctx.subgraph = subg
+                target_label = (
+                    anchor.get("event_idx")
+                    or anchor.get("idx")
+                    or anchor.get("index")
+                    or anchor.get("target")
+                )
+                anchor_prefix = f"{idx + 1}" if total_anchors is None else f"{idx + 1}/{total_anchors}"
+                print(f"\n[EvaluationRunner] Anchor {anchor_prefix} (target={target_label})")
 
-                for explainer in self.explainers:
+                for expl_idx, explainer in enumerate(self.explainers):
+                    # resolve extractor for this explainer
+                    ext = self.extractor_map.get(getattr(explainer, "alias", explainer.name), None) \
+                        or self.extractor_map.get(explainer.name, None) \
+                        or self.extractor
+                    if ext is None:
+                        raise ValueError(f"No extractor provided for explainer '{explainer.alias}'.")
+
+                    subg = ext.extract(self.dataset, anchor, k_hop=k_hop,
+                                       num_neighbors=num_neighbors, window=window)
+                    ctx.subgraph = subg
+
+                    label = getattr(explainer, "alias", getattr(explainer, "name", explainer.__class__.__name__))
+                    progress = f"{expl_idx + 1}/{total_explainers}"
+                    print(f"[EvaluationRunner]   [{progress}] {label}: start")
                     t0 = _time.perf_counter()
                     res: ExplanationResult = explainer.explain(ctx)
                     res.elapsed_sec = _time.perf_counter() - t0
                     res.context_fp = ctx.fingerprint()
+                    print(f"[EvaluationRunner]   [{progress}] {label}: done in {res.elapsed_sec:.2f}s")
+
+                    # ---- ensure candidate alignment for metrics (fallback) ----
+                    if ctx.subgraph is not None:
+                        if ctx.subgraph.payload is None:
+                            ctx.subgraph.payload = {}
+                        payload = ctx.subgraph.payload
+                        # If the explainer returns candidate ordering in extras but the payload is missing it,
+                        # copy it over so fidelity_keep/drop can build masks.
+                        cand_from_res = res.extras.get("candidate_eidx")
+                        if cand_from_res and "candidate_eidx" not in payload:
+                            payload["candidate_eidx"] = list(cand_from_res)
+                        # Also propagate edge_index if provided
+                        edge_idx_from_res = res.extras.get("candidate_edge_index") or res.extras.get("edge_index")
+                        if edge_idx_from_res and not ctx.subgraph.edge_index:
+                            ctx.subgraph.edge_index = edge_idx_from_res
+                        if edge_idx_from_res and "candidate_edge_index" not in payload:
+                            payload["candidate_edge_index"] = edge_idx_from_res
+
+                        # Align importance vector to payload candidate ordering if lengths disagree
+                        cand_payload = payload.get("candidate_eidx")
+                        cand_res = cand_from_res
+                        imp_edges = res.importance_edges
+                        if (
+                            cand_payload is not None
+                            and imp_edges is not None
+                            and cand_res is not None
+                            and len(imp_edges) != len(cand_payload)
+                            and len(cand_res) == len(imp_edges)
+                        ):
+                            mapping = {int(e): imp_edges[i] for i, e in enumerate(cand_res)}
+                            aligned = [mapping.get(int(e), 0.0) for e in cand_payload]
+                            res.extras.setdefault("importance_edges_raw", imp_edges)
+                            res.importance_edges = aligned
 
                     # ---- compute metrics (object-style) ----
                     metrics_row: Dict[str, float] = {}
+                    metric_details: Dict[str, List[Dict[str, Any]]] = {}
+                    # debug prints for fidelity alignment
+                    try:
+                        if res.importance_edges is not None:
+                            print("n_importance:", len(res.importance_edges))
+                        if ctx.subgraph and ctx.subgraph.payload and "candidate_eidx" in ctx.subgraph.payload:
+                            print("n_candidate:", len(ctx.subgraph.payload["candidate_eidx"]))
+                    except Exception:
+                        pass
+                    # debug: candidate count for fidelity masks
+                    try:
+                        cand = None
+                        if ctx.subgraph and ctx.subgraph.payload:
+                            cand = ctx.subgraph.payload.get('candidate_eidx')
+                        if cand is not None:
+                            print(f"[Runner debug] explainer={res.explainer} candidates={len(cand)}")
+                    except Exception:
+                        pass
+                    metric_details: Dict[str, List[Dict[str, Any]]] = {}
                     for metric in self._metrics:
                         mres = metric.compute(ctx, res)
                         mlist = mres if isinstance(mres, (list, tuple)) else [mres]
                         for r in mlist:
                             for k, v in (r.values or {}).items():
                                 metrics_row[f"{r.name}.{k}"] = v
+                            if getattr(r, "extras", None) or getattr(r, "values", None):
+                                detail = {
+                                    "values": dict(r.values or {}),
+                                    "extras": dict(r.extras or {}),
+                                }
+                                if getattr(r, "direction", None):
+                                    detail["direction"] = r.direction
+                                metric_details.setdefault(r.name, []).append(detail)
 
                     # ---- write JSONL ----
                     if jsonl_f:
@@ -118,7 +206,8 @@ class EvaluationRunner:
                                 "importance_time": res.importance_time,
                                 "extras": res.extras
                             },
-                            "metrics": metrics_row
+                            "metrics": metrics_row,
+                            "metric_details": metric_details
                         }) + "\n")
 
                     # ---- write CSV (first row sets header) ----

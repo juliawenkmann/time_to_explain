@@ -57,16 +57,20 @@ def save_data(
     edge_feats: np.ndarray,
     dataset_name: str,
     root_dir: Optional[Path] = None,
+    processed_dir: Optional[Path] = None,
+    raw_dir: Optional[Path] = None,
+    bipartite: bool = True,
 ) -> Dict[str, str]:
-    verify_dataframe_unify(df)
+    verify_dataframe_unify(df, bipartite=bipartite)
 
-    assert len(node_feats) == df.i.max() + 1
+    max_node = int(max(df["u"].max(), df["i"].max()))
+    assert len(node_feats) == max_node + 1
     assert len(edge_feats) == len(df) + 1
 
     base_root = Path(root_dir) if root_dir is not None else ROOT_DIR
-    processed = _processed_dir(dataset_name, root_dir=base_root)
+    processed = Path(processed_dir) if processed_dir is not None else _processed_dir(dataset_name, root_dir=base_root)
     processed.mkdir(parents=True, exist_ok=True)
-    raw_dir = _raw_dir(dataset_name, root_dir=base_root)
+    raw_dir = Path(raw_dir) if raw_dir is not None else _raw_dir(dataset_name, root_dir=base_root)
     raw_dir.mkdir(parents=True, exist_ok=True)
 
     raw_csv = raw_dir / f"{dataset_name}.csv"
@@ -96,12 +100,26 @@ def load_processed_dataset(
 ) -> DatasetBundle:
     dataset_path = Path(dataset)
 
+    def _dataset_name_from_file(path: Path) -> str:
+        stem = path.stem
+        if stem.startswith("ml_"):
+            stem = stem[3:]
+        if stem.endswith("_node"):
+            stem = stem[: -len("_node")]
+        return stem
+
     if dataset_path.exists():
         if dataset_path.is_dir():
             base = dataset_path
+            dataset_name = base.name
+            expected = base / f"ml_{dataset_name}.csv"
+            if not expected.exists():
+                candidates = sorted(base.glob("ml_*.csv"))
+                if len(candidates) == 1:
+                    dataset_name = _dataset_name_from_file(candidates[0])
         else:
             base = dataset_path.parent
-        dataset_name = base.name
+            dataset_name = _dataset_name_from_file(dataset_path)
     else:
         dataset_name = str(dataset)
         base = _processed_dir(dataset_name, root_dir)
@@ -131,8 +149,14 @@ def load_processed_dataset(
     }
 
 
-def save_metadata(dataset_name: str, metadata: Dict[str, Any], *, root_dir: Optional[Path] = None) -> Path:
-    processed = _processed_dir(dataset_name, root_dir)
+def save_metadata(
+    dataset_name: str,
+    metadata: Dict[str, Any],
+    *,
+    root_dir: Optional[Path] = None,
+    processed_dir: Optional[Path] = None,
+) -> Path:
+    processed = Path(processed_dir) if processed_dir is not None else _processed_dir(dataset_name, root_dir)
     processed.mkdir(parents=True, exist_ok=True)
     meta_path = processed / f"ml_{dataset_name}.json"
     with meta_path.open("w", encoding="utf-8") as f:
@@ -145,6 +169,8 @@ def export_tgn_csv(
     dataset_name: str,
     *,
     root_dir: Optional[Path] = None,
+    processed_dir: Optional[Path] = None,
+    raw_dir: Optional[Path] = None,
     overwrite: bool = False,
     seed: Optional[int] = 0,
     metadata: Optional[Dict[str, Any]] = None,
@@ -153,54 +179,95 @@ def export_tgn_csv(
         raise TypeError("bundle must be a DatasetBundle dictionary")
 
     root = Path(root_dir) if root_dir is not None else ROOT_DIR
-    processed_dir = _processed_dir(dataset_name, root)
+    processed_dir = Path(processed_dir) if processed_dir is not None else _processed_dir(dataset_name, root)
     if processed_dir.exists() and not overwrite:
-        raise FileExistsError(
-            f"Processed dataset directory {processed_dir} already exists. Pass overwrite=True to replace it."
-        )
+        existing_csv = processed_dir / f"ml_{dataset_name}.csv"
+        if existing_csv.exists():
+            raise FileExistsError(
+                f"Processed dataset {existing_csv} already exists. Pass overwrite=True to replace it."
+            )
 
     df = verify_interactions(bundle["interactions"])
+    raw_dir = Path(raw_dir) if raw_dir is not None else _raw_dir(dataset_name, root)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    raw_csv = raw_dir / f"{dataset_name}.csv"
+    df.to_csv(raw_csv, index=False)
+    meta = metadata or bundle.get("metadata") or {}
+    cfg = meta.get("config", {})
+    bipartite = bool(meta.get("bipartite", cfg.get("bipartite", True)))
 
-    user_ids = sorted(df["u"].unique())
-    item_ids = sorted(df["i"].unique())
+    if bipartite:
+        user_ids = sorted(df["u"].unique())
+        item_ids = sorted(df["i"].unique())
 
-    user_map = {old: idx + 1 for idx, old in enumerate(user_ids)}
-    item_offset = len(user_ids)
-    item_map = {old: item_offset + idx + 1 for idx, old in enumerate(item_ids)}
+        user_map = {old: idx + 1 for idx, old in enumerate(user_ids)}
+        item_offset = len(user_ids)
+        item_map = {old: item_offset + idx + 1 for idx, old in enumerate(item_ids)}
 
-    df_tgn = df.copy()
-    df_tgn["u"] = df_tgn["u"].map(user_map)
-    df_tgn["i"] = df_tgn["i"].map(item_map)
-    df_tgn["idx"] = np.arange(1, len(df_tgn) + 1)
-    df_tgn["e_idx"] = df_tgn["idx"]
+        df_tgn = df.copy()
+        df_tgn["u"] = df_tgn["u"].map(user_map)
+        df_tgn["i"] = df_tgn["i"].map(item_map)
+        df_tgn["idx"] = np.arange(1, len(df_tgn) + 1)
+        df_tgn["e_idx"] = df_tgn["idx"]
 
-    verify_dataframe_unify(df_tgn)
+        verify_dataframe_unify(df_tgn, bipartite=True)
 
-    node_features = bundle.get("node_features")
-    if node_features is None:
-        meta = metadata or bundle.get("metadata") or {}
-        cfg = meta.get("config", {})
-        feat_dim = int(
-            meta.get("node_feat_dim")
-            or cfg.get("node_feat_dim")
-            or len(user_ids) + len(item_ids)
-        )
-        rng = np.random.default_rng(seed)
-        raw_node = rng.normal(size=(len(user_ids) + len(item_ids), max(1, feat_dim)))
+        node_features = bundle.get("node_features")
+        if node_features is None:
+            feat_dim = int(
+                meta.get("node_feat_dim")
+                or cfg.get("node_feat_dim")
+                or len(user_ids) + len(item_ids)
+            )
+            rng = np.random.default_rng(seed)
+            raw_node = rng.normal(size=(len(user_ids) + len(item_ids), max(1, feat_dim)))
+        else:
+            raw_node = np.asarray(node_features)
+            if raw_node.ndim != 2:
+                raise ValueError("node_features must be a 2D array")
+            max_needed = max(user_ids + item_ids) if (user_ids or item_ids) else -1
+            if raw_node.shape[0] <= max_needed:
+                raise ValueError("node_features does not cover all node ids")
+
+        feat_dim = raw_node.shape[1]
+        node_feats = np.zeros((len(user_ids) + len(item_ids) + 1, feat_dim), dtype=raw_node.dtype)
+        for old, new in user_map.items():
+            node_feats[new] = raw_node[int(old)]
+        for old, new in item_map.items():
+            node_feats[new] = raw_node[int(old)]
     else:
-        raw_node = np.asarray(node_features)
-        if raw_node.ndim != 2:
-            raise ValueError("node_features must be a 2D array")
-        max_needed = max(user_ids + item_ids) if (user_ids or item_ids) else -1
-        if raw_node.shape[0] <= max_needed:
-            raise ValueError("node_features does not cover all node ids")
+        node_ids = sorted(pd.unique(df[["u", "i"]].to_numpy().ravel()))
+        node_map = {old: idx + 1 for idx, old in enumerate(node_ids)}
 
-    feat_dim = raw_node.shape[1]
-    node_feats = np.zeros((len(user_ids) + len(item_ids) + 1, feat_dim), dtype=raw_node.dtype)
-    for old, new in user_map.items():
-        node_feats[new] = raw_node[int(old)]
-    for old, new in item_map.items():
-        node_feats[new] = raw_node[int(old)]
+        df_tgn = df.copy()
+        df_tgn["u"] = df_tgn["u"].map(node_map)
+        df_tgn["i"] = df_tgn["i"].map(node_map)
+        df_tgn["idx"] = np.arange(1, len(df_tgn) + 1)
+        df_tgn["e_idx"] = df_tgn["idx"]
+
+        verify_dataframe_unify(df_tgn, bipartite=False)
+
+        node_features = bundle.get("node_features")
+        if node_features is None:
+            feat_dim = int(
+                meta.get("node_feat_dim")
+                or cfg.get("node_feat_dim")
+                or len(node_ids)
+            )
+            rng = np.random.default_rng(seed)
+            raw_node = rng.normal(size=(len(node_ids), max(1, feat_dim)))
+        else:
+            raw_node = np.asarray(node_features)
+            if raw_node.ndim != 2:
+                raise ValueError("node_features must be a 2D array")
+            max_needed = max(node_ids) if node_ids else -1
+            if raw_node.shape[0] <= max_needed:
+                raise ValueError("node_features does not cover all node ids")
+
+        feat_dim = raw_node.shape[1]
+        node_feats = np.zeros((len(node_ids) + 1, feat_dim), dtype=raw_node.dtype)
+        for old, new in node_map.items():
+            node_feats[new] = raw_node[int(old)]
 
     edge_features = bundle.get("edge_features")
     if edge_features is None:
@@ -216,12 +283,22 @@ def export_tgn_csv(
         edge_feats = np.zeros((len(df_tgn) + 1, edge_arr.shape[1]), dtype=edge_arr.dtype)
         edge_feats[1:] = edge_arr
 
-    file_paths = save_data(df_tgn, node_feats, edge_feats, dataset_name, root_dir=root)
+    file_paths = save_data(
+        df_tgn,
+        node_feats,
+        edge_feats,
+        dataset_name,
+        root_dir=root,
+        processed_dir=processed_dir,
+        raw_dir=raw_dir,
+        bipartite=bipartite,
+    )
 
     meta_out: Dict[str, Any] = dict(metadata or bundle.get("metadata") or {})
     meta_out.setdefault("dataset_name", dataset_name)
     meta_out.setdefault("source", "processed")
-    save_metadata(dataset_name, meta_out, root_dir=root)
+    meta_out.setdefault("bipartite", bipartite)
+    save_metadata(dataset_name, meta_out, root_dir=root, processed_dir=processed_dir)
 
     return Path(file_paths["csv"]).parent
 

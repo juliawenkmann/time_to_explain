@@ -1,17 +1,19 @@
 time_to_explain/resources
 time_to_explain/resources/
 /time_to_explain/resources
+
+submodules
+submodules/
 resources/
 resources
 /resources
 /resources/
 
-# large artefacts
-resources.zip
-
-# large artifacts
 resources.zip
 
 notebooks/viz_out
 notebooks/runs
 __pycache__/
+
+submodules
+/submodules

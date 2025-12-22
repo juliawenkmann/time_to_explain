@@ -1,0 +1,8 @@
+{
+  "name": "degree",
+  "adapter": "degree",
+  "args": {
+    "alias": "degree",
+    "aggregation": "mean"
+  }
+}

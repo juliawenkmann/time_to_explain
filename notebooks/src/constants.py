@@ -1,5 +1,6 @@
 # notebooks/src/constants.py
 from __future__ import annotations
+import json
 import os
 import sys
 import re
@@ -28,6 +29,16 @@ RAW_DATA_DIR = Path(os.getenv("RAW_DATA_DIR", RESOURCES_DIR / "datasets" / "raw"
 PROCESSED_DATA_DIR = Path(os.getenv("PROCESSED_DATA_DIR", RESOURCES_DIR / "datasets" / "processed"))
 MODELS_ROOT = RESOURCES_DIR / "models"
 RESULTS_ROOT = RESOURCES_DIR / "results"
+
+
+def load_notebook_config(path: Path | None = None) -> dict:
+    """
+    Load a shared notebook config (seed/device) from configs/notebooks/global.json.
+    """
+    cfg_path = path or (REPO_ROOT / "configs" / "notebooks" / "global.json")
+    if cfg_path.exists():
+        return json.loads(cfg_path.read_text(encoding="utf-8"))
+    return {}
 
 def ensure_repo_importable() -> None:
     """Make sure Python can import `time_to_explain` without editing global env."""

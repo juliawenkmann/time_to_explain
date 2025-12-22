@@ -4,8 +4,16 @@ from tick.hawkes import SimuHawkesExpKernels
 from itertools import product
 import pandas as pd
 
+import sys
+from pathlib import Path
+
+# Ensure vendored tgnnexplainer (under submodules) is importable as `tgnnexplainer`
+_TGNN_VENDOR = Path(__file__).resolve().parents[3] / "submodules" / "explainer" / "tgnnexplainer"
+if str(_TGNN_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TGNN_VENDOR))
+
 from tgnnexplainer import ROOT_DIR
-from time_to_explain.explainer.tgnnexplainer.tg_dataset import verify_dataframe_unify
+from tgnnexplainer.xgraph.dataset.tg_dataset import verify_dataframe_unify
 
 
 RAW_DATA_DIR = ROOT_DIR/'xgraph'/'dataset'/'data'
@@ -260,8 +268,6 @@ if __name__ == '__main__':
         hawkes, type_edge_mapping, n_nodes = simulate_hawkes_v2()
         print_statistics(hawkes)
         make_dataset(hawkes, type_edge_mapping, n_nodes, dataset_name=dataset_name)
-
-
 
 
 

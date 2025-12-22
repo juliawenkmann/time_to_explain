@@ -1,0 +1,13 @@
+{
+  "name": "tempme_neural",
+  "adapter": "tempme_neural",
+  "args": {
+    "base_type": "{model_type}",
+    "dataset_name": "{dataset_name}",
+    "explainer_ckpt": "resources/explainer/tempme/{model_type}_{dataset_name}_tempme_ckpt.pt",
+    "train_if_missing": true,
+    "processed_dir": "resources/datasets/processed",
+    "use_background": false,
+    "alias": "tempme_neural"
+  }
+}
