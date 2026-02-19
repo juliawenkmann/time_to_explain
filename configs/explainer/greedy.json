@@ -1,0 +1,14 @@
+{
+    "name": "greedy",
+    "adapter": "greedy",
+    "args": {
+      "alias": "greedy",
+      "selection_policy": "temporal",
+      "candidates_size": 75,
+      "sample_size": 10,
+      "approximate_predictions": true,
+      "batch_size": 256,
+      "verbose": false
+    }
+  }
+  

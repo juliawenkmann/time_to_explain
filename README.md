@@ -58,7 +58,7 @@ explainers:
 
 metrics:
   - builder: fidelity_minus
-    k: [6, 12, 18]
+    k: 10
 
 experiment:
   output_dir: outputs/wikipedia_default
@@ -82,7 +82,10 @@ Keys map directly to registry entries (see below).  Any mapping can include an
 |             | `tgnnexplainer`       | Adapter for T-GNNExplainer (Monte-Carlo tree search).  |
 |             | `cody`                | Adapter for the CoDy counterfactual explainer.         |
 |             | `greedycf`            | Adapter for the GreedyCF counterfactual explainer.     |
-| Metric      | `fidelity_minus`      | Computes fidelity- for configurable top-k values.      |
+| Metric      | `fidelity_plus`       | 1 - |z_expl - z_full| using explanation-only edges.     |
+|             | `fidelity_minus`      | |z_full - z_removed| after dropping explanation edges. |
+|             | `sparsity`            | |E_expl| / |E_candidates|.                             |
+|             | `aufsc`               | Area under the fidelity-sparsity curve.               |
 | Sampler     | `random`              | Samples event IDs via `dataset.extract_random_event_ids`. |
 
 Additional components can be registered by decorating factories with the
@@ -177,7 +180,7 @@ including:
 
 - dataset/model identifiers
 - explanation metadata (type, size, timings)
-- metric values (e.g., `metric.fidelity_minus@6`, `metric.fidelity_minus@12`)
+- metric values (e.g., `metric.fidelity_minus.value`, `metric.sparsity.ratio`)
 - optional debug information emitted by the underlying explainer
 
 Results are stored as CSV and Parquet under the configured `output_dir`.

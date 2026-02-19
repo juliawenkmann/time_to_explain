@@ -117,14 +117,26 @@ class AttnAdapter(BaseExplainer):
                 eidx,
             )
 
-        weights_dict = self._explainer.explain(event_idx=eidx)
+        # Safely compute attention weights; avoid KeyError when candidates lack attention entries.
+        events_idxs = self._explainer.ori_subgraph_df.e_idx.values
+        _ = self._explainer.tgnn_reward_wraper._compute_gnn_score(events_idxs, eidx)
+        weights_raw = self._explainer._agg_attention(self._explainer.model, self._explainer.model_name)
+        candidate_events = [int(e) for e in getattr(self._explainer, "candidate_events", [])]
+        candidate_weights = {
+            int(e): float(weights_raw[e])
+            for e in candidate_events
+            if e in weights_raw
+        }
+        weights_dict = dict(
+            sorted(candidate_weights.items(), key=lambda x: x[1], reverse=True)
+        )
         elapsed = time.perf_counter() - t0
 
         # Determine candidate ordering for importance vector
         if cand_payload is not None:
             candidate = list(cand_payload)
         else:
-            candidate = list(weights_dict.keys())
+            candidate = list(candidate_events) if candidate_events else list(weights_dict.keys())
 
         # Align importance to candidate order
         pos = {int(k): float(v) for k, v in weights_dict.items()}

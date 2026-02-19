@@ -10,10 +10,11 @@ import pandas as pd
 import time_to_explain.data.synthetic_recipes  # noqa: F401
 
 from time_to_explain.core.registry import available_datasets
-from time_to_explain.data.generate_synthetic_dataset import prepare_dataset as prepare_synthetic_dataset
+from time_to_explain.data.synthetic import prepare_dataset as prepare_synthetic_dataset
 from time_to_explain.data.io import load_processed_dataset, resolve_repo_root
 from time_to_explain.data.tgnn_paths import TGNNDatasetPaths, tgnn_dataset_paths
-from time_to_explain.data.tgnn_setup import generate_explain_index, setup_tgnn_data
+from time_to_explain.data.explain_index import generate_explain_index
+from time_to_explain.data.tgnn_setup import setup_tgnn_data
 from time_to_explain.data.validate import basic_stats
 from time_to_explain.data.workflows import read_dataset_config
 
@@ -23,7 +24,7 @@ SYNTHETIC_ALIASES: Dict[str, str] = {
     "sticky_figure": "stick_figure",
 }
 
-REAL_TGNN_DATASETS = {"wikipedia", "reddit", "simulate_v1", "simulate_v2"}
+REAL_TGNN_DATASETS = {"wikipedia", "reddit", "simulate_v1", "simulate_v2", "multihost"}
 
 
 def _resolve_repo_root(root_dir: Optional[Path] = None) -> Path:

@@ -20,9 +20,9 @@ class GNNExplainer:
     Thin wrapper around PyTorch Geometric's GNNExplainer with robust context parsing
     and candidate-edge alignment to your framework's `ExplanationContext`.
 
-    This engine chooses the legacy PyG API by default for broad compatibility:
-        - Legacy: torch_geometric.nn.models.GNNExplainer
+    This engine prefers the new PyG API when available and falls back to legacy:
         - New:    torch_geometric.explain(.*)
+        - Legacy: torch_geometric.nn.models.GNNExplainer
 
     Returned `extras` are strictly JSON-serializable (ints/floats/strings/lists).
     """
@@ -55,9 +55,9 @@ class GNNExplainer:
             torch.cuda.manual_seed_all(self.seed)
 
     def attach(self, *, model: Any, dataset: Any) -> None:
-        self._model = model
+        self._model = self._unwrap_model(model)
         self._dataset = dataset
-        self._device = self._infer_device(model)
+        self._device = self._infer_device(self._model)
 
     # ------------------------------ helpers
     def _infer_device(self, model: Any) -> torch.device:
@@ -66,6 +66,33 @@ class GNNExplainer:
             return p.device
         except Exception:
             return torch.device("cpu")
+
+    def _unwrap_model(self, model: Any) -> Any:
+        def _find_module(obj: Any, depth: int = 2) -> Optional[torch.nn.Module]:
+            if isinstance(obj, torch.nn.Module):
+                return obj
+            if depth <= 0 or obj is None:
+                return None
+            for attr in ("backbone", "model", "module", "net", "gnn", "encoder"):
+                cand = getattr(obj, attr, None)
+                mod = _find_module(cand, depth - 1)
+                if mod is not None:
+                    return mod
+            return None
+
+        found = _find_module(model, depth=2)
+        return found if found is not None else model
+
+    def _ensure_model_compatible(self) -> None:
+        if not isinstance(self._model, torch.nn.Module):
+            raise RuntimeError(
+                f"GNNExplainer requires a torch.nn.Module; got {type(self._model).__name__}."
+            )
+        base_forward = torch.nn.Module.forward
+        if getattr(self._model.__class__, "forward", base_forward) is base_forward:
+            raise RuntimeError(
+                "GNNExplainer requires a model with an implemented forward() method."
+            )
 
     def _to_long_edge_index(self, edge_index: Any, device: torch.device) -> _Tensor:
         ei = torch.as_tensor(edge_index, dtype=torch.long, device=device)
@@ -308,6 +335,8 @@ class GNNExplainer:
         if self._model is None:
             raise RuntimeError("GNNExplainerEngine: no model attached. Call `attach(model=..., dataset=...)` via adapter.prepare().")
 
+        self._ensure_model_compatible()
+
         graph_d, meta = self._extract_payload(context)
         scope = self._scope_from(graph_d)
 
@@ -315,65 +344,15 @@ class GNNExplainer:
         if graph_d.get("target", None) is None:
             graph_d["target"] = self._infer_target_if_missing(graph_d)
 
-        # ---------------- Try LEGACY API first (broadest compatibility)
+        # ---------------- Prefer NEW API if available, fallback to LEGACY
         used_api = None
         node_scores: Optional[List[float]] = None
         edge_mask_tensor: Optional[_Tensor] = None
         final_loss: Optional[float] = None
+        new_error: Optional[Exception] = None
+        legacy_error: Optional[Exception] = None
 
-        try:
-            from torch_geometric.nn.models import GNNExplainer as LegacyGNNExplainer  # type: ignore
-            used_api = "legacy"
-            explainer = LegacyGNNExplainer(
-                self._model,
-                epochs=int(self.epochs),
-                lr=float(self.lr),
-                feat_mask_type=self.feat_mask_type,
-                log=self.log,
-            )
-
-            if scope == "node":
-                node_idx = int(graph_d["node_idx"])
-                # Legacy signatures accept optional kwargs (edge_attr/batch):
-                kwargs = {}
-                if graph_d.get("edge_attr", None) is not None:
-                    kwargs["edge_attr"] = graph_d["edge_attr"]
-                if graph_d.get("batch", None) is not None:
-                    kwargs["batch"] = graph_d["batch"]
-                node_feat_mask, edge_mask = explainer.explain_node(
-                    node_idx,
-                    graph_d["x"],
-                    graph_d["edge_index"],
-                    **kwargs,
-                )
-                # Legacy API returns (node_feature_mask, edge_mask)
-                edge_mask_tensor = edge_mask
-                # GNNExplainer (legacy) does not produce per-node mask; we leave node_scores=None
-            else:
-                kwargs = {}
-                if graph_d.get("edge_attr", None) is not None:
-                    kwargs["edge_attr"] = graph_d["edge_attr"]
-                if graph_d.get("batch", None) is not None:
-                    kwargs["batch"] = graph_d["batch"]
-
-                node_feat_mask, edge_mask = explainer.explain_graph(
-                    graph_d["x"],
-                    graph_d["edge_index"],
-                    **kwargs,
-                )
-                edge_mask_tensor = edge_mask
-
-            # Best-effort get final loss if present (not guaranteed):
-            try:
-                final_loss = float(getattr(explainer, "loss", math.nan))
-            except Exception:
-                final_loss = None
-
-        except Exception:
-            # ---------------- Try NEW API if allowed
-            if not self.allow_new_pyg_api:
-                raise
-
+        if self.allow_new_pyg_api:
             try:
                 # New API shapes & configs:
                 #   from torch_geometric.explain import Explainer, GNNExplainer
@@ -390,18 +369,40 @@ class GNNExplainer:
                 # task_level is "node" or "graph"
                 task_level = "node" if scope == "node" else "graph"
 
-                explainer = Explainer(
+                explainer_kwargs = dict(
                     model=self._model,
                     algorithm=NewGNNExplainer(epochs=int(self.epochs), lr=float(self.lr)),
-                    explanation_type="model",  # follow the model's decision boundary
-                    node_mask_type="attributes",   # operate on node features
-                    edge_mask_type="object",       # learn edge mask
+                    explanation_type="model",  # follow the model's decision boundary (newer PyG)
+                    node_mask_type="attributes",
+                    edge_mask_type="object",
                     model_config=dict(
                         mode="classification",
                         task_level=task_level,
                         return_type=model_return_type,  # "raw" | "log_probs" | "probs" (version-dependent)
                     ),
                 )
+                def _filter_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+                    try:
+                        import inspect
+                        sig = inspect.signature(Explainer)
+                        allowed = set(sig.parameters.keys())
+                        return {k: v for k, v in kwargs.items() if k in allowed}
+                    except Exception:
+                        return kwargs
+
+                def _build_explainer(kwargs: Dict[str, Any]):
+                    try:
+                        return Explainer(**_filter_kwargs(kwargs))
+                    except TypeError as exc:
+                        msg = str(exc)
+                        for key in ("explanation_type", "node_mask_type", "edge_mask_type", "model_config"):
+                            if key in msg and key in kwargs:
+                                trimmed = dict(kwargs)
+                                trimmed.pop(key, None)
+                                return _build_explainer(trimmed)
+                        raise
+
+                explainer = _build_explainer(explainer_kwargs)
 
                 if scope == "node":
                     exp = explainer(
@@ -433,14 +434,77 @@ class GNNExplainer:
                 except Exception:
                     final_loss = None
 
-            except Exception as e:
-                # Neither API worked -> raise a clear error with context.
-                raise RuntimeError(
-                    "GNNExplainerEngine could not import a compatible PyTorch Geometric GNNExplainer.\n"
-                    "Please install/upgrade PyG. Tried legacy (`torch_geometric.nn.models.GNNExplainer`) "
-                    "and new API (`torch_geometric.explain`).\n"
-                    f"Original error: {repr(e)}"
+            except Exception as exc:
+                new_error = exc
+                edge_mask_tensor = None
+                node_scores = None
+                final_loss = None
+
+        if edge_mask_tensor is None:
+            try:
+                from torch_geometric.nn.models import GNNExplainer as LegacyGNNExplainer  # type: ignore
+                used_api = "legacy"
+                explainer = LegacyGNNExplainer(
+                    self._model,
+                    epochs=int(self.epochs),
+                    lr=float(self.lr),
+                    feat_mask_type=self.feat_mask_type,
+                    log=self.log,
                 )
+
+                if scope == "node":
+                    node_idx = int(graph_d["node_idx"])
+                    # Legacy signatures accept optional kwargs (edge_attr/batch):
+                    kwargs = {}
+                    if graph_d.get("edge_attr", None) is not None:
+                        kwargs["edge_attr"] = graph_d["edge_attr"]
+                    if graph_d.get("batch", None) is not None:
+                        kwargs["batch"] = graph_d["batch"]
+                    node_feat_mask, edge_mask = explainer.explain_node(
+                        node_idx,
+                        graph_d["x"],
+                        graph_d["edge_index"],
+                        **kwargs,
+                    )
+                    # Legacy API returns (node_feature_mask, edge_mask)
+                    edge_mask_tensor = edge_mask
+                    # GNNExplainer (legacy) does not produce per-node mask; we leave node_scores=None
+                else:
+                    kwargs = {}
+                    if graph_d.get("edge_attr", None) is not None:
+                        kwargs["edge_attr"] = graph_d["edge_attr"]
+                    if graph_d.get("batch", None) is not None:
+                        kwargs["batch"] = graph_d["batch"]
+
+                    node_feat_mask, edge_mask = explainer.explain_graph(
+                        graph_d["x"],
+                        graph_d["edge_index"],
+                        **kwargs,
+                    )
+                    edge_mask_tensor = edge_mask
+
+                # Best-effort get final loss if present (not guaranteed):
+                try:
+                    final_loss = float(getattr(explainer, "loss", math.nan))
+                except Exception:
+                    final_loss = None
+
+            except Exception as exc:
+                legacy_error = exc
+
+        if edge_mask_tensor is None:
+            details = []
+            if new_error is not None:
+                details.append(f"new API error: {repr(new_error)}")
+            if legacy_error is not None:
+                details.append(f"legacy error: {repr(legacy_error)}")
+            detail_txt = "\n".join(details) if details else "unknown error"
+            raise RuntimeError(
+                "GNNExplainerEngine could not import a compatible PyTorch Geometric GNNExplainer.\n"
+                "Please install/upgrade PyG. Tried new API (`torch_geometric.explain`) and legacy "
+                "(`torch_geometric.nn.models.GNNExplainer`).\n"
+                f"Original error: {detail_txt}"
+            )
 
         # --------------------------------- finalize
         assert edge_mask_tensor is not None, "Internal error: GNNExplainer didn't yield an edge mask."

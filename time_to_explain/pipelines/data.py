@@ -5,7 +5,7 @@ from typing import Dict, Iterable, Optional, Sequence
 
 import pandas as pd
 
-from time_to_explain.data.generate_synthetic_dataset import prepare_dataset
+from time_to_explain.data.synthetic import prepare_dataset
 from time_to_explain.data.io import resolve_repo_root
 from time_to_explain.data.tgnn_setup import setup_tgnn_data
 

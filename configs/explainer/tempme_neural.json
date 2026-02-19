@@ -7,6 +7,19 @@
     "explainer_ckpt": "resources/explainer/tempme/{model_type}_{dataset_name}_tempme_ckpt.pt",
     "train_if_missing": true,
     "processed_dir": "resources/datasets/processed",
+    "preprocess_validate": true,
+    "preprocess_overrides": {
+      "batch_size": 1024,
+      "mask_ratio": 0.1,
+      "min_train": 100,
+      "min_val": 10,
+      "min_test": 10
+    },
+    "trainer_overrides": {
+      "bs": 500,
+      "test_bs": 500,
+      "n_epoch": 150
+    },
     "use_background": false,
     "alias": "tempme_neural"
   }

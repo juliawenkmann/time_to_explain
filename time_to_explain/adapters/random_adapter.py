@@ -16,7 +16,7 @@ class RandomAdapterConfig:
 class RandomAdapter(BaseExplainer):
     """
     Minimal adapter that exposes the random baseline through the shared
-    `BaseExplainer` interface so it can be scheduled next to SubgraphX, TEMP-ME, etc.
+    `BaseExplainer` interface so it can be scheduled next to TGNNExplainer, TEMP-ME, etc.
     """
 
     def __init__(self, cfg: Optional[RandomAdapterConfig] = None) -> None:

@@ -77,5 +77,5 @@ if True:  # pragma: no cover - mypy/pyright assistance block
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
-        from time_to_explain.data.legacy.data import ContinuousTimeDynamicGraphDataset
+        from temgxlib.data import ContinuousTimeDynamicGraphDataset
         from time_to_explain.models.base import BaseTemporalGNN  # noqa: F401

@@ -1,0 +1,25 @@
+{
+  "name": "tempme_tgn_impl",
+  "adapter": "tempme_tgn_impl",
+  "args": {
+    "explanation_level": "event",
+    "results_dir": "resources/results",
+    "debug_mode": false,
+    "num_motifs_per_node": 20,
+    "motif_len": 3,
+    "motif_max_nodes": 3,
+    "time_dim": 16,
+    "hidden_dim": 64,
+    "motif_encoder_layers": 2,
+    "dropout": 0.0,
+    "p_prior": 0.2,
+    "beta": 1.0,
+    "selection_mode": "topk",
+    "top_k": 5,
+    "use_selected_only": true,
+    "uniform_sampling": true,
+    "undirected": true,
+    "checkpoint": null,
+    "alias": "tempme_tgn_impl"
+  }
+}

@@ -4,7 +4,7 @@ from itertools import count
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 import warnings
-from .plots import (
+from .datasets import (
     animate_bipartite_graph,
     animate_stick_figure,
     plot_bipartite_graph,

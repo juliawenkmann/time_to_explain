@@ -42,8 +42,17 @@ ROOT_DIR = resolve_repo_root()
 
 
 def _processed_dir(dataset_name: str, root_dir: Optional[Path] = None) -> Path:
+    """Return the *processed root* directory.
+
+    The project uses a flat layout:
+        <root>/resources/datasets/processed/ml_<name>.csv
+
+    Older versions used a per-dataset subfolder; we keep this helper flat to
+    match the rest of the pipeline and make `load_processed_dataset("name")`
+    work out of the box.
+    """
     base = Path(root_dir) if root_dir is not None else ROOT_DIR
-    return base / "resources" / "datasets" / "processed" / dataset_name
+    return base / "resources" / "datasets" / "processed"
 
 
 def _raw_dir(dataset_name: str, root_dir: Optional[Path] = None) -> Path:
@@ -327,20 +336,6 @@ def load_tg_dataset(dataset_name: str, root_dir: Optional[Path] = None):
     print(f"#node feats shape: {node_feats.shape}, #edge feats shape: {edge_feats.shape}")
 
     return df, edge_feats, node_feats
-
-
-def load_explain_idx(explain_idx_filepath, start=0, end=None):
-    df = pd.read_csv(explain_idx_filepath)
-    event_idxs = df["event_idx"].to_list()
-    if end is not None:
-        event_idxs = event_idxs[start:end]
-    else:
-        event_idxs = event_idxs[start:]
-
-    print(f"{len(event_idxs)} events to explain")
-
-    return event_idxs
-
 
 def load_events_data(path):
     df = pd.read_csv(path)

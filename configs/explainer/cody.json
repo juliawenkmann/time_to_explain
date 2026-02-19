@@ -5,8 +5,8 @@
     "alias": "cody",
     "selection_policy": "temporal",
     "candidates_size": 75,
-    "max_steps": 200,
-    "approximate_predictions": true,
+    "max_steps": 1200,
+    "approximate_predictions": false,
     "alpha": 0.6666667,
     "batch_size": 256,
     "verbose": false

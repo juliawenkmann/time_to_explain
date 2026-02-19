@@ -118,22 +118,43 @@ def build_extractor_map(
     return {k: build_extractor(v, model=model, dataset=dataset) for k, v in mapping.items()}
 
 
-def build_metrics(specs: Iterable[Mapping[str, Any]] | Iterable[str]) -> List[str]:
+def build_metrics(specs: Any) -> Any:
     """
-    Metrics are registered factories; we just need their names for EvalConfig.
+    Validate metric specs and return a normalized spec for EvalConfig.
     """
-    names: List[str] = []
-    for spec in specs or []:
+    if specs is None:
+        return []
+    if isinstance(specs, str):
+        if specs not in METRICS.keys():
+            raise KeyError(f"Metric '{specs}' is not registered. Import its module or register it first.")
+        return [specs]
+    if isinstance(specs, dict):
+        normalized: Dict[str, Dict[str, Any]] = {}
+        for name, cfg in specs.items():
+            if name not in METRICS.keys():
+                raise KeyError(f"Metric '{name}' is not registered. Import its module or register it first.")
+            if cfg is None:
+                normalized[str(name)] = {}
+            elif isinstance(cfg, dict):
+                normalized[str(name)] = dict(cfg)
+            else:
+                raise TypeError("Metric config must be a mapping.")
+        return normalized
+
+    normalized = []
+    for spec in specs:
         if isinstance(spec, str):
             name = spec
-        else:
+        elif isinstance(spec, dict):
             name = spec.get("builder") or spec.get("name")
-        if not name:
-            raise ValueError("Metric config must contain 'builder' or 'name'.")
+            if not name:
+                raise ValueError("Metric config must contain 'builder' or 'name'.")
+        else:
+            raise TypeError("Metric spec must be a string or mapping.")
         if name not in METRICS.keys():
             raise KeyError(f"Metric '{name}' is not registered. Import its module or register it first.")
-        names.append(name)
-    return names
+        normalized.append(spec)
+    return normalized
 
 
 # --------------------------------------------------------------------------- #

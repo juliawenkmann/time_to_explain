@@ -5,6 +5,7 @@ import hashlib, json, time
 from typing import Any, Dict, Optional, TypedDict
 import pandas as pd
 import numpy as np
+from abc import ABC, abstractmethod
 
 TargetKind = Literal["edge", "node", "graph"]
 
@@ -116,3 +117,17 @@ class DatasetBundle(TypedDict):
     node_features: Optional[np.ndarray]  # shape [num_nodes, d] or None
     edge_features: Optional[np.ndarray]  # per-interaction (or per-edge) shape
     metadata: Dict[str, Any]
+
+class DatasetRecipe(ABC):
+    RECIPE_NAME = "base"
+
+    def __init__(self, **config):
+        self.config = config
+
+    @classmethod
+    def default_config(cls) -> Dict[str, Any]:
+        return {}
+
+    @abstractmethod
+    def generate(self) -> DatasetBundle:
+        ...

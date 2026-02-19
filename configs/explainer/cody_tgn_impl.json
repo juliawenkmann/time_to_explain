@@ -1,0 +1,23 @@
+{
+  "name": "cody_tgn_impl",
+  "adapter": "cody_tgn_impl",
+  "args": {
+    "explanation_level": "event",
+    "results_dir": "resources/results",
+    "debug_mode": false,
+    "k_hops": null,
+    "m_max": 75,
+    "it_max": 200,
+    "alpha": 0.6666666667,
+    "policy": "temporal",
+    "per_node_cap": null,
+    "assume_undirected": true,
+    "use_greedy": false,
+    "greedy_l": 3,
+    "greedy_it_max": 50,
+    "extra_neighbors": 50,
+    "assume_model_returns_prob": null,
+    "use_payload_candidates": false,
+    "alias": "cody_tgn_impl"
+  }
+}

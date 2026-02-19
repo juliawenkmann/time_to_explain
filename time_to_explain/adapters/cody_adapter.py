@@ -10,13 +10,20 @@ import pandas as pd
 import torch
 
 from time_to_explain.core.types import BaseExplainer, ExplanationContext, ExplanationResult
-from time_to_explain.data.legacy.data import ContinuousTimeDynamicGraphDataset
+
+_TEMGX_VENDOR = Path(__file__).resolve().parents[2] / "submodules" / "explainer" / "TemGX" / "link"
+if str(_TEMGX_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TEMGX_VENDOR))
+
+from temgxlib.data import ContinuousTimeDynamicGraphDataset
 from time_to_explain.models.adapter.wrapper import TGNNWrapper
 
 # Ensure vendored CoDy (under submodules) is importable as `cody`
 _CODY_VENDOR = Path(__file__).resolve().parents[2] / "submodules" / "explainer" / "CoDy"
 if str(_CODY_VENDOR) not in sys.path:
     sys.path.insert(0, str(_CODY_VENDOR))
+if str(_CODY_VENDOR / "cody") not in sys.path:
+    sys.path.insert(0, str(_CODY_VENDOR / "cody"))
 
 from cody.explainer.cody import CoDy
 
@@ -171,6 +178,32 @@ class CoDyAdapter(BaseExplainer):
             verbose=self.cfg.verbose,
         )
 
+    def _resolve_candidate_eidx(self, internal_event_id: int) -> Optional[list[int]]:
+        if self._explainer is None or self._wrapper is None:
+            return None
+        try:
+            subgraph = self._explainer.subgraph_generator.get_fixed_size_k_hop_temporal_subgraph(
+                num_hops=self._explainer.num_hops,
+                base_event_id=internal_event_id,
+                size=self._explainer.candidates_size,
+            )
+        except Exception:
+            return None
+
+        if subgraph is None or len(subgraph) == 0 or "idx" not in subgraph.columns:
+            return None
+
+        candidate_ids = subgraph["idx"].to_numpy(dtype=int)
+        if candidate_ids.size == 0:
+            return None
+
+        try:
+            model_ids = self._wrapper._to_model_event_ids(candidate_ids)
+        except Exception:
+            model_ids = candidate_ids + int(self._event_id_offset)
+
+        return [int(e) for e in model_ids.tolist()]
+
     def explain(self, context: ExplanationContext) -> ExplanationResult:
         if self._explainer is None or self._wrapper is None:
             raise RuntimeError("CoDyAdapter not prepared. Call prepare() first.")
@@ -210,11 +243,26 @@ class CoDyAdapter(BaseExplainer):
 
         cf_events_model = (cf_events + self._event_id_offset).astype(int)
 
-        candidate = None
+        payload_candidate = None
         if context.subgraph and context.subgraph.payload:
-            candidate = context.subgraph.payload.get("candidate_eidx")
-        if candidate is None:
+            raw_candidate = context.subgraph.payload.get("candidate_eidx")
+            if raw_candidate is not None:
+                payload_candidate = [int(e) for e in raw_candidate]
+
+        cody_candidate = self._resolve_candidate_eidx(internal_event_id)
+
+        if cody_candidate:
+            candidate = cody_candidate
+        elif payload_candidate is not None:
+            candidate = payload_candidate
+        else:
             candidate = cf_events_model.tolist()
+
+        if context.subgraph is not None:
+            if context.subgraph.payload is None:
+                context.subgraph.payload = {}
+            if isinstance(context.subgraph.payload, dict):
+                context.subgraph.payload["candidate_eidx"] = list(candidate)
 
         score_map = {int(e): float(s) for e, s in zip(cf_events_model, cf_importances)}
         importance_edges = [score_map.get(int(e), 0.0) for e in candidate]
@@ -230,6 +278,9 @@ class CoDyAdapter(BaseExplainer):
             "achieves_counterfactual": cf_example.achieves_counterfactual_explanation,
             "elapsed_sec_cody": elapsed,
         }
+        if payload_candidate is not None and cody_candidate is not None:
+            if payload_candidate != list(candidate):
+                extras["candidate_eidx_extractor"] = payload_candidate
 
         return ExplanationResult(
             run_id=context.run_id,

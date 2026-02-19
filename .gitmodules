@@ -9,7 +9,7 @@
 	url = git@github.com:juliawenkmann/TempME.git
 [submodule "submodules/explainer/htgexplainer"]
 	path = submodules/explainer/htgexplainer
-	url = git@github.com:juliawenkmann/htgexplainer.git
+	url = https://github.com/lijiazheng0917/HTGExplainer.git
 [submodule "submodules/explainer/tgnnexplainer"]
 	path = submodules/explainer/tgnnexplainer
 	url = git@github.com:juliawenkmann/tgnnexplainer.git

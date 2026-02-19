@@ -1,115 +1,133 @@
-# time_to_explain/extractors/tg_event_candidates_extractor.py
 from __future__ import annotations
-from typing import Any, Dict, Optional, Tuple, List
-import numpy as np
-from itertools import chain
 
-from time_to_explain.core.types import Subgraph
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+
 from time_to_explain.core.registry import register_extractor
+from time_to_explain.core.types import Subgraph
+
+from .common import EventIndex, anchor_event_idx
 
 
 @register_extractor("tg_event_candidates")
-class BaseExtractor:
-    """
-    Freeze the anchor event and compute a deterministic candidate edge list.
+class TGEventCandidatesExtractor:
+    """Deterministic candidate edge list using model.ngh_finder.
 
-    Args:
-        model: trained TGN/TGAT with attributes .ngh_finder, .num_layers, .num_neighbors
-        events: DataFrame with at least columns [u, i, ts] in that order
-        threshold_num: cap the candidate list (like your SubgraphX‑TG config)
-        keep_order: "last-N-then-sort" (matches your pattern) or "chronological" or "as-is"
+    For L layers, queries `ngh_finder.get_temporal_neighbor()` starting from the
+    anchor endpoints and collects unique edge ids.
 
-    Returns:
-        Subgraph with payload:
-          - event_idx (1-based)
-          - candidate_eidx (stable order for vector alignment)
-          - (optional) u, i, ts for convenience
+    Payload keys:
+      - event_idx
+      - candidate_eidx
+      - (optional) candidate_edge_times, candidate_edge_index, edge_index
+      - (optional) u, i, ts
     """
+
     name = "tg_event_candidates"
 
-    def __init__(self, *, model: Any, events, threshold_num: int = 500000, keep_order: str = "last-N-then-sort",
-                 attach_event_meta: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        model: Any,
+        events,
+        threshold_num: int = 500_000,
+        keep_order: str = "last-N-then-sort",
+        attach_event_meta: bool = True,
+        attach_candidate_meta: bool = True,
+        max_node_mask_size: int = 5_000_000,
+    ) -> None:
         self.model = model
-        self.events = events
         self.threshold_num = int(threshold_num)
-        self.keep_order = keep_order
-        self.attach_event_meta = attach_event_meta
+        self.keep_order = str(keep_order)
+        self.attach_event_meta = bool(attach_event_meta)
+        self.attach_candidate_meta = bool(attach_candidate_meta)
 
-    def extract(self, dataset: Any, anchor: Dict[str, Any], *, k_hop: int,
-                num_neighbors: int, window: Optional[Tuple[float, float]] = None) -> Subgraph:
+        self._idx = EventIndex.from_events(events, max_node_mask_size=max_node_mask_size)
 
-        eidx = anchor.get("event_idx") or anchor.get("index") or anchor.get("idx")
-        if eidx is None:
-            raise ValueError("TGEventCandidatesExtractor requires anchor['event_idx'|'index'|'idx'].")
+    def extract(
+        self,
+        dataset: Any,
+        anchor: Dict[str, Any],
+        *,
+        k_hop: int,
+        num_neighbors: int,
+        window: Optional[Tuple[float, float]] = None,
+    ) -> Subgraph:
+        # window is currently unused; preserved for extractor interface compatibility
+        del dataset, k_hop, window
 
-        eidx = int(eidx)  # 1-based
-        ngh = self.model.ngh_finder
-        L   = int(getattr(self.model, "num_layers", 1))
-        K   = int(getattr(self.model, "num_neighbors", num_neighbors))  # prefer model setting
+        eidx = anchor_event_idx(anchor)
+        base_row = self._idx.resolve_row(eidx)
+        meta = self._idx.event_meta(base_row)
+        u, v, ts = meta["u"], meta["i"], meta["ts"]
 
-        # events.iloc[eidx-1] matches your 1-based e_idx convention
-        u = int(self.events.iloc[eidx - 1, 0])
-        i = int(self.events.iloc[eidx - 1, 1])
-        ts = float(self.events.iloc[eidx - 1, 2])
+        ngh = getattr(self.model, "ngh_finder", None)
+        if ngh is None:
+            raise ValueError("Model must expose .ngh_finder with get_temporal_neighbor().")
 
-        accu_nodes: List[List[int]] = [[u, i]]
-        accu_ts:    List[List[float]] = [[ts, ts]]
-        accu_eidx:  List[List[int]] = []
+        L = int(getattr(self.model, "num_layers", 1))
+        K = int(getattr(self.model, "num_neighbors", num_neighbors))
 
-        for _ in range(L):
-            last_nodes = accu_nodes[-1]
-            last_ts    = accu_ts[-1]
-            out_nodes, out_eidx, out_t = ngh.get_temporal_neighbor(
-                last_nodes, last_ts, num_neighbors=K
+        candidates = self._collect_candidate_eids(ngh, u=u, v=v, ts=ts, layers=L, num_neighbors=K)
+
+        payload: Dict[str, Any] = {"event_idx": int(eidx), "candidate_eidx": candidates}
+
+        if self.attach_candidate_meta and candidates:
+            rows = self._idx.rows_for_eids(candidates)
+            edge_pairs = self._idx.edge_pairs(rows)
+            payload.update(
+                {
+                    "candidate_edge_times": self._idx.edge_times(rows),
+                    "candidate_edge_index": edge_pairs,
+                    "edge_index": edge_pairs,
+                }
             )
-            out_nodes = out_nodes.flatten()
-            out_eidx  = out_eidx.flatten()
-            out_t     = out_t.flatten()
-            mask = out_nodes != 0
-            accu_nodes.append(out_nodes[mask].tolist())
-            accu_ts.append(out_t[mask].tolist())
-            accu_eidx.append(out_eidx[mask].tolist())
-
-        unique_e = np.array(list(chain.from_iterable(accu_eidx)))
-        unique_e = unique_e[unique_e != 0]          # remove paddings
-        unique_e = np.unique(unique_e).tolist()
-
-        # enforce a bounded, stable order (align with your SubgraphX‑TG)
-        candidates = unique_e
-        if self.threshold_num and len(candidates) > self.threshold_num:
-            # common pattern in your code: take the last-N then sort to stabilize
-            candidates = candidates[-self.threshold_num:]
-        if self.keep_order == "last-N-then-sort":
-            candidates = sorted(candidates)
-        elif self.keep_order == "chronological":
-            # Keep original chronological order by event id (assuming e_idx correlates with time)
-            pass
-        # else "as-is"
-
-        payload: Dict[str, Any] = {
-            "event_idx": eidx,
-            "candidate_eidx": candidates,
-        }
-
-        def _column_values(df, rows, preferred: str, fallback_idx: int):
-            if hasattr(df, "columns") and preferred in df.columns:
-                return rows[preferred].to_numpy()
-            return rows.iloc[:, fallback_idx].to_numpy()
-
-        if candidates:
-            idx = [max(0, int(c) - 1) for c in candidates]
-            rows = self.events.iloc[idx]
-            src_vals = _column_values(self.events, rows, "u", 0).astype(np.int64)
-            dst_vals = _column_values(self.events, rows, "i", 1).astype(np.int64)
-            time_vals = _column_values(self.events, rows, "ts", 2).astype(float)
-            edge_pairs = np.stack([src_vals, dst_vals], axis=1).tolist()
-            payload.update({
-                "candidate_edge_times": time_vals.tolist(),
-                "candidate_edge_index": edge_pairs,
-                "edge_index": edge_pairs,
-            })
 
         if self.attach_event_meta:
-            payload.update({"u": u, "i": i, "ts": ts})
+            payload.update(meta)
 
-        return Subgraph(node_ids=[], edge_index=[], payload=payload)
+        return Subgraph(node_ids=[], edge_index=payload.get("edge_index", []), payload=payload)
+
+    def _collect_candidate_eids(self, ngh: Any, *, u: int, v: int, ts: float, layers: int, num_neighbors: int) -> List[int]:
+        nodes = np.asarray([u, v], dtype=np.int64)
+        times = np.asarray([ts, ts], dtype=np.float64)
+
+        collected: List[np.ndarray] = []
+        for _ in range(int(layers)):
+            out_nodes, out_eids, out_ts = ngh.get_temporal_neighbor(nodes.tolist(), times.tolist(), num_neighbors=int(num_neighbors))
+            out_nodes = np.asarray(out_nodes).reshape(-1)
+            out_eids = np.asarray(out_eids).reshape(-1)
+            out_ts = np.asarray(out_ts).reshape(-1)
+
+            mask = out_nodes != 0
+            if not np.any(mask):
+                break
+
+            nodes = out_nodes[mask]
+            times = out_ts[mask]
+            collected.append(out_eids[mask])
+
+        if not collected:
+            return []
+
+        unique = np.unique(np.concatenate(collected))
+        unique = unique[unique > 0]  # remove padding
+        candidates = unique.astype(np.int64).tolist()
+
+        if self.threshold_num > 0 and len(candidates) > self.threshold_num:
+            candidates = candidates[-self.threshold_num :]
+
+        if self.keep_order == "last-N-then-sort":
+            candidates = sorted(candidates)
+        elif self.keep_order in {"chronological", "as-is"}:
+            # np.unique is sorted already; keep for compatibility
+            pass
+        else:
+            raise ValueError(f"Unknown keep_order='{self.keep_order}'")
+
+        return candidates
+
+
+# Backwards-compat alias (older code may import BaseExtractor from this module)
+BaseExtractor = TGEventCandidatesExtractor

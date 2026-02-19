@@ -2,77 +2,37 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
+import json
+import re
 import warnings
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import matplotlib.colors as mpl_colors
+from matplotlib import cm as mpl_cm
+import matplotlib.pyplot as plt
+import seaborn as sns
+import networkx as nx
+from networkx.algorithms import bipartite as nx_bipartite
+from cycler import cycler
 
-# Plotly for interactive charts
-try:  # pragma: no cover
-    import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-except ImportError:  # pragma: no cover
-    go = None
-    make_subplots = None
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "global" / "plots.json"
+_PLOT_CONFIG = json.loads(_CONFIG_PATH.read_text())
+PLOT_STYLE = _PLOT_CONFIG["style"]
+COLORS = _PLOT_CONFIG["colors"]
+PLOT_COLORWAY = _PLOT_CONFIG["colorway"]
 
-# Matplotlib helpers (optional)
-try:  # pragma: no cover
-    import matplotlib.colors as mpl_colors
-    from matplotlib import cm as mpl_cm
-except ImportError:  # pragma: no cover
-    mpl_colors = None
-    mpl_cm = None
+_DEFAULT_PLOT_DIR = Path(__file__).resolve().parents[2] / "resources" / "results" / "plots"
 
-try:  # pragma: no cover
-    import matplotlib.pyplot as plt
-except ImportError:  # pragma: no cover
-    plt = None
 
-try:  # pragma: no cover
-    import seaborn as sns
-except ImportError:  # pragma: no cover
-    sns = None
-
-# NetworkX is optional but required for several graph views
-try:  # pragma: no cover
-    import networkx as nx
-    from networkx.algorithms import bipartite as nx_bipartite
-except ImportError:  # pragma: no cover
-    nx = None
-    nx_bipartite = None
-
-PLOT_STYLE = {
-    "font_family": "Helvetica, Arial, sans-serif",
-    "font_size": 12,
-    "title_size": 16,
-    "axis_title_size": 12,
-    "tick_size": 11,
-    "legend_size": 11,
-    "annotation_size": 11,
-}
-COLORS = {
-    "user": "#4C78A8",
-    "item": "#F58518",
-    "accent": "#C44E52",
-    "accent2": "#54A24B",
-    "base": "#9E9E9E",
-    "text": "#222222",
-    "grid": "#E5E5E5",
-    "background": "#FFFFFF",
-}
-PLOT_COLORWAY = [
-    COLORS["user"],
-    COLORS["item"],
-    COLORS["accent"],
-    COLORS["accent2"],
-    COLORS["base"],
-]
+def _slugify(text: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("_") or "plot"
 
 
 def _build_plotly_template():
-    if go is None:
-        return "simple_white"
     return go.layout.Template(
         layout=go.Layout(
             paper_bgcolor=COLORS["background"],
@@ -112,12 +72,6 @@ _PLOTLY_TEMPLATE = _build_plotly_template()
 
 
 def choose_explain_indices(num_events: int, *, count: int = 3) -> List[int]:
-    """
-    Return up to ``count`` anchor event indices (first, middle, last) for highlighting.
-
-    This mirrors the helper that lived in the data-prep notebook so downstream
-    visualisations can consistently highlight representative events.
-    """
     if num_events <= 0 or count <= 0:
         return []
 
@@ -143,7 +97,7 @@ def choose_explain_indices(num_events: int, *, count: int = 3) -> List[int]:
 @dataclass(frozen=True)
 class DatasetVizProfile:
     dataset_name: str
-    recipe: Optional[str]
+    recipe: str
     is_bipartite: bool
     is_nicolaus: bool
     is_triadic: bool
@@ -163,29 +117,23 @@ def _normalize_dataset_name(value: Union[str, Path]) -> str:
 
 
 def infer_dataset_profile(
-    metadata: Optional[Dict[str, Any]] = None,
+    metadata: Dict[str, Any] | None = None,
     *,
-    dataset_name: Optional[Union[str, Path]] = None,
+    dataset_name: Union[str, Path, None] = None,
 ) -> DatasetVizProfile:
-    """Infer dataset flags (bipartite vs. synthetic types) from metadata and name."""
     meta = metadata or {}
     config = meta.get("config") if isinstance(meta.get("config"), dict) else {}
 
-    fallback_name = None
-    if dataset_name is not None:
-        try:
-            fallback_name = _normalize_dataset_name(dataset_name)
-        except Exception:
-            fallback_name = str(dataset_name)
+    fallback_name = _normalize_dataset_name(dataset_name) if dataset_name else ""
 
-    raw_dataset = meta.get("dataset_name") if isinstance(meta.get("dataset_name"), str) else None
-    raw_recipe = meta.get("recipe") if isinstance(meta.get("recipe"), str) else None
+    raw_dataset = meta.get("dataset_name") if isinstance(meta.get("dataset_name"), str) else ""
+    raw_recipe = meta.get("recipe") if isinstance(meta.get("recipe"), str) else ""
     dataset_label = raw_dataset or fallback_name or raw_recipe or "dataset"
 
     label_candidates = [
         label.lower()
         for label in (raw_dataset, raw_recipe, fallback_name)
-        if isinstance(label, str)
+        if isinstance(label, str) and label
     ]
 
     nicolaus_tokens = ("nicolaus", "nicholaus", "nikolaus")
@@ -200,19 +148,14 @@ def infer_dataset_profile(
     is_triadic = _matches(triadic_tokens)
     is_stick = _matches(stick_tokens)
 
-    bipartite_flag: Optional[bool] = None
-    if "bipartite" in meta:
-        bipartite_flag = bool(meta["bipartite"])
-    elif "bipartite" in config:
-        bipartite_flag = bool(config["bipartite"])
-
-    if bipartite_flag is None:
+    bipartite_flag = meta.get("bipartite") if "bipartite" in meta else config.get("bipartite")
+    if not isinstance(bipartite_flag, bool):
         bipartite_flag = not _matches(non_bipartite_tokens)
 
     return DatasetVizProfile(
         dataset_name=dataset_label,
         recipe=raw_recipe,
-        is_bipartite=bipartite_flag,
+        is_bipartite=bool(bipartite_flag),
         is_nicolaus=is_nicolaus,
         is_triadic=is_triadic,
         is_stick=is_stick,
@@ -222,44 +165,38 @@ def infer_dataset_profile(
 def load_dataset_bundle(
     dataset: Union[str, Path, Dict[str, Any]],
     *,
-    root_dir: Optional[Path] = None,
+    root_dir: Path | None = None,
     verbose: bool = True,
 ) -> Dict[str, Any]:
-    """Resolve a processed dataset bundle from a name/path or pass-through bundle."""
     if isinstance(dataset, dict):
         if "interactions" not in dataset:
             raise KeyError("Dataset bundle must include an 'interactions' dataframe.")
         return dataset
     if isinstance(dataset, (str, Path)):
-        from ..data.workflows import load_processed_dataset_safe  # local import to avoid cycles
+        from ..data import load_processed_dataset
 
-        return load_processed_dataset_safe(dataset, root_dir=root_dir, verbose=verbose)
+        _ = verbose
+        return load_processed_dataset(dataset, root_dir=root_dir)
     raise TypeError(f"Unsupported dataset type: {type(dataset)!r}")
 
 
 def _require_plotly() -> None:
-    if go is None or make_subplots is None:
-        raise RuntimeError("Plotly is required for this visualization. Install via 'pip install plotly kaleido'.")
+    return
 
 
 def _require_networkx() -> None:
-    if nx is None:
-        raise RuntimeError("networkx is required for graph visualisations. Install via 'pip install networkx'.")
+    return
 
 
 def _require_matplotlib() -> None:
-    if plt is None:
-        raise RuntimeError("Matplotlib is required for this visualization. Install via 'pip install matplotlib'.")
+    return
 
 
 def _require_seaborn() -> None:
-    if sns is None:
-        raise RuntimeError("Seaborn is required for this visualization. Install via 'pip install seaborn'.")
+    return
 
 
 def apply_matplotlib_style() -> None:
-    if plt is None:
-        return
     rc = {
         "axes.edgecolor": COLORS["grid"],
         "grid.color": COLORS["grid"],
@@ -270,14 +207,13 @@ def apply_matplotlib_style() -> None:
         "figure.facecolor": COLORS["background"],
         "axes.facecolor": COLORS["background"],
     }
-    if sns is not None:
-        sns.set_theme(
-            style="whitegrid",
-            palette=PLOT_COLORWAY,
-            font=PLOT_STYLE["font_family"],
-            font_scale=1.0,
-            rc=rc,
-        )
+    sns.set_theme(
+        style="whitegrid",
+        palette=PLOT_COLORWAY,
+        font=PLOT_STYLE["font_family"],
+        font_scale=1.0,
+        rc=rc,
+    )
     plt.rcParams.update(
         {
             "font.family": PLOT_STYLE["font_family"],
@@ -290,12 +226,7 @@ def apply_matplotlib_style() -> None:
             "figure.titlesize": PLOT_STYLE["title_size"],
         }
     )
-    try:
-        from cycler import cycler  # type: ignore
-    except Exception:
-        cycler = None
-    if cycler is not None:
-        plt.rcParams["axes.prop_cycle"] = cycler(color=PLOT_COLORWAY)
+    plt.rcParams["axes.prop_cycle"] = cycler(color=PLOT_COLORWAY)
 
 
 def _hex_to_rgb(color: str) -> np.ndarray:
@@ -303,7 +234,7 @@ def _hex_to_rgb(color: str) -> np.ndarray:
     if len(color) == 3:
         color = "".join(ch * 2 for ch in color)
     if len(color) != 6:
-        raise ValueError(f"Expected #RRGGBB hex colour, got '{color}'")
+        raise ValueError(f"Expected #RRGGBB hex color, got '{color}'")
     return np.array([int(color[i : i + 2], 16) for i in (0, 2, 4)], dtype=float) / 255.0
 
 
@@ -375,18 +306,12 @@ def _map_ratio_to_color(
     if edge_cmap in {"theme_sequential", "theme_seq"}:
         return _interpolate_colorscale(SEQUENTIAL_COLORSCALE, ratio)
     if isinstance(edge_cmap, (list, tuple)):
-        try:
-            return _interpolate_colorscale(edge_cmap, ratio)
-        except Exception:
-            pass
-    if mpl_cm is not None and mpl_colors is not None:
-        cmap = mpl_cm.get_cmap(edge_cmap)
-        return mpl_colors.to_hex(cmap(ratio))
-    return _blend_hex(COLORS["accent"], COLORS["accent2"], ratio)
+        return _interpolate_colorscale(edge_cmap, ratio)
+    cmap = mpl_cm.get_cmap(edge_cmap)
+    return mpl_colors.to_hex(cmap(ratio))
 
 
 def _ensure_dataframe(data: Union[pd.DataFrame, Dict[str, Any], str, Path]) -> pd.DataFrame:
-    """Return a shallow copy of the interactions dataframe from various inputs."""
     if isinstance(data, pd.DataFrame):
         return data.copy()
     if isinstance(data, dict):
@@ -408,38 +333,23 @@ def _ensure_dataframe(data: Union[pd.DataFrame, Dict[str, Any], str, Path]) -> p
     raise TypeError(f"Unsupported data type: {type(data)!r}")
 
 
-def _maybe_save(fig: "go.Figure", save_to: Optional[Union[str, Path]]) -> Optional[str]:
-    if not save_to:
-        return None
-    save_to = str(save_to)
-    if save_to.lower().endswith(".html"):
-        try:
-            fig.write_html(save_to, include_plotlyjs="cdn", auto_open=False)
-        except (ValueError, OverflowError) as exc:
-            msg = str(exc).lower()
-            if "string length" in msg or "memory" in msg:
-                warnings.warn(f"Skipping HTML save for '{save_to}': {exc}", RuntimeWarning)
-                return None
-            raise
+def _maybe_save(fig: "go.Figure", save_to: Union[str, Path, bool, None]) -> str:
+    if save_to == False:
+        return ""
+    save_to = _DEFAULT_PLOT_DIR if save_to in (None, True) else save_to
+    save_path = Path(save_to)
+    if save_path.suffix == "" or save_path.is_dir():
+        save_path.mkdir(parents=True, exist_ok=True)
+        title = fig.layout.title.text or "plot"
+        filename = f"{_slugify(str(title))}.png"
+        save_path = save_path / filename
     else:
-        try:
-            fig.write_image(save_to, scale=2)
-        except Exception as exc:  # kaleido missing or other issue
-            warnings.warn(
-                f"Static export failed ({exc}). Saving HTML instead at '{save_to}.html'. "
-                "Install kaleido for static image export: pip install -U kaleido",
-                RuntimeWarning,
-            )
-            fallback = save_to + ".html"
-            try:
-                fig.write_html(fallback, include_plotlyjs="cdn", auto_open=False)
-                save_to = fallback
-            except (ValueError, OverflowError) as inner_exc:
-                msg = str(inner_exc).lower()
-                if "string length" in msg or "memory" in msg:
-                    warnings.warn(f"Skipping HTML save for '{fallback}': {inner_exc}", RuntimeWarning)
-                    return None
-                raise
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+    save_to = str(save_path)
+    if save_to.lower().endswith(".html"):
+        fig.write_html(save_to, include_plotlyjs="cdn", auto_open=False)
+    else:
+        fig.write_image(save_to, scale=2)
     return save_to
 
 
@@ -461,43 +371,23 @@ def _compute_bipartite_layout(
     scale: float = 1.8,
     vertical: bool = True,
 ) -> Dict[int, Tuple[float, float]]:
-    """Layout helper that works across networkx versions."""
-    _require_networkx()
     top_nodes = list(top_nodes)
     bottom_nodes = [n for n in G.nodes if n not in top_nodes]
 
-    layout_fn = None
-    if nx_bipartite is not None:
-        layout_module = getattr(nx_bipartite, "layout", None)
-        if layout_module is not None:
-            layout_fn = getattr(layout_module, "bipartite_layout", None)
-    if layout_fn is None:
-        layout_fn = getattr(nx, "bipartite_layout", None)
-
-    if layout_fn is not None:
-        try:
-            return layout_fn(
-                G,
-                top_nodes=top_nodes,
-                align="vertical" if vertical else "horizontal",
-                scale=scale,
-            )
-        except TypeError:
-            return layout_fn(G, nodes=top_nodes, align="vertical" if vertical else "horizontal")
-
-    # Fallback to simple two rows
-    y_top = scale
-    y_bottom = -scale if vertical else scale
-    x_spacing = scale / max(1, len(top_nodes))
-    x_spacing_bottom = scale / max(1, len(bottom_nodes))
-
     pos: Dict[int, Tuple[float, float]] = {}
+    top_count = max(1, len(top_nodes))
+    bottom_count = max(1, len(bottom_nodes))
+
     for idx, node in enumerate(top_nodes):
-        x = -scale + idx * x_spacing if vertical else 0.0
-        pos[node] = (x, y_top) if vertical else (y_top, x)
+        x = -scale + (2 * scale * idx / (top_count - 1)) if top_count > 1 else 0.0
+        y = scale
+        pos[node] = (x, y) if vertical else (y, x)
+
     for idx, node in enumerate(bottom_nodes):
-        x = -scale + idx * x_spacing_bottom if vertical else 0.0
-        pos[node] = (x, y_bottom) if vertical else (y_bottom, x)
+        x = -scale + (2 * scale * idx / (bottom_count - 1)) if bottom_count > 1 else 0.0
+        y = -scale
+        pos[node] = (x, y) if vertical else (y, x)
+
     return pos
 
 
@@ -513,13 +403,13 @@ def _resolve_event_positions(df: pd.DataFrame, event_indices: Sequence[int]) -> 
     n = len(df)
     for raw_idx in event_indices:
         idx = int(raw_idx)
-        pos: Optional[int] = mapping.get(idx)
-        if pos is None:
+        pos = mapping.get(idx, -1)
+        if pos < 0:
             if 0 <= idx < n:
                 pos = idx
             elif 1 <= idx <= n:
                 pos = idx - 1
-        if pos is None or not (0 <= pos < n):
+        if not (0 <= pos < n):
             warnings.warn(f"Event index {raw_idx} not found in dataframe; skipping.", RuntimeWarning)
             continue
         positions.append(pos)
@@ -528,17 +418,13 @@ def _resolve_event_positions(df: pd.DataFrame, event_indices: Sequence[int]) -> 
 
 def select_ground_truth_event(
     df: pd.DataFrame,
-    metadata: Optional[Dict[str, Any]],
-    explain_indices: Optional[Sequence[int]] = None,
-) -> Optional[int]:
-    ground = (metadata or {}).get("ground_truth") or {}
+    metadata: Dict[str, Any] | None,
+    explain_indices: Sequence[int] | None = None,
+) -> int | None:
+    meta = metadata or {}
+    ground = meta.get("ground_truth") or {}
     raw_targets = ground.get("targets") or []
-    targets: List[int] = []
-    for t in raw_targets:
-        try:
-            targets.append(int(t))
-        except (TypeError, ValueError):
-            continue
+    targets = [int(t) for t in raw_targets if str(t).lstrip("-").isdigit()]
     targets = sorted({t for t in targets if 0 <= t < len(df)})
     if not targets:
         return None
@@ -576,6 +462,7 @@ __all__ = [
     "_map_ratio_to_color",
     "_rgba",
     "select_ground_truth_event",
+    "choose_explain_indices",
     "go",
     "make_subplots",
     "nx",

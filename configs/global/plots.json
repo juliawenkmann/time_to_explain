@@ -1,0 +1,28 @@
+{
+  "style": {
+    "font_family": "Helvetica, Arial, sans-serif",
+    "font_size": 12,
+    "title_size": 16,
+    "axis_title_size": 12,
+    "tick_size": 11,
+    "legend_size": 11,
+    "annotation_size": 11
+  },
+  "colors": {
+    "user": "#4C78A8",
+    "item": "#F58518",
+    "accent": "#C44E52",
+    "accent2": "#54A24B",
+    "base": "#9E9E9E",
+    "text": "#222222",
+    "grid": "#E5E5E5",
+    "background": "#FFFFFF"
+  },
+  "colorway": [
+    "#4C78A8",
+    "#F58518",
+    "#C44E52",
+    "#54A24B",
+    "#9E9E9E"
+  ]
+}

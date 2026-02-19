@@ -276,8 +276,15 @@ class TempMEAdapter(BaseExplainer):
 
         # If we somehow got no motifs, fall back to a degenerate explanation
         if not motifs:
-            candidate = [eidx]
-            imp_edges = [1.0]
+            payload_candidate = None
+            if context.subgraph and context.subgraph.payload:
+                payload_candidate = context.subgraph.payload.get("candidate_eidx")
+            if payload_candidate:
+                candidate = [int(e) for e in payload_candidate]
+                imp_edges = [1.0 if int(e) == eidx else 0.0 for e in candidate]
+            else:
+                candidate = [eidx]
+                imp_edges = [1.0]
             elapsed = time.perf_counter() - t0
             pack = {
                 "candidate_eidx": candidate,
@@ -323,17 +330,32 @@ class TempMEAdapter(BaseExplainer):
                 event_importance[ev] += imp
 
         # 6) Build candidate event list & dense importance vector
+        def _normalize(values: List[float]) -> List[float]:
+            if not values:
+                return []
+            vals = torch.tensor(values, dtype=torch.float32)
+            if vals.abs().max() > 0:
+                vals = vals / (vals.abs().max() + 1e-9)
+            return vals.tolist()
+
         candidate_eidx = sorted(event_importance.keys())
-        if not candidate_eidx:
+        candidate_eidx_raw: Optional[List[int]] = None
+        importance_edges_raw: Optional[List[float]] = None
+        payload_candidate = None
+        if context.subgraph and context.subgraph.payload:
+            payload_candidate = context.subgraph.payload.get("candidate_eidx")
+
+        if payload_candidate:
+            candidate_eidx_raw = list(candidate_eidx)
+            candidate_eidx = [int(e) for e in payload_candidate]
+            importance_edges_raw = [float(event_importance.get(int(e), 0.0)) for e in candidate_eidx]
+            imp_edges = _normalize(importance_edges_raw)
+        elif not candidate_eidx:
             # Extremely edge case: all motif scores collapsed to 0
             candidate_eidx = [eidx]
             imp_edges = [0.0]
         else:
-            # Normalize event importances (optional but often helpful)
-            vals = torch.tensor([event_importance[e] for e in candidate_eidx], dtype=torch.float32)
-            if vals.abs().max() > 0:
-                vals = vals / (vals.abs().max() + 1e-9)
-            imp_edges = vals.tolist()
+            imp_edges = _normalize([float(event_importance[e]) for e in candidate_eidx])
 
         elapsed = time.perf_counter() - t0
 
@@ -346,6 +368,10 @@ class TempMEAdapter(BaseExplainer):
             "label_full": label_full,
             "elapsed_sec": elapsed,
         }
+        if candidate_eidx_raw is not None:
+            pack["candidate_eidx_raw"] = candidate_eidx_raw
+        if importance_edges_raw is not None:
+            pack["importance_edges_raw"] = importance_edges_raw
 
         if self.cfg.cache:
             self._cache[eidx] = pack
@@ -414,6 +440,10 @@ class TempMEAdapter(BaseExplainer):
             "score_full": pack.get("score_full"),
             "label_full": pack.get("label_full"),
         }
+        if "candidate_eidx_raw" in pack:
+            extras["candidate_eidx_raw"] = list(pack.get("candidate_eidx_raw") or [])
+        if "importance_edges_raw" in pack:
+            extras["importance_edges_raw"] = list(pack.get("importance_edges_raw") or [])
 
         return ExplanationResult(
             run_id=context.run_id,

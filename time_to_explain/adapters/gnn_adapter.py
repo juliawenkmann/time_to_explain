@@ -51,7 +51,7 @@ class GNNExplainerAdapterConfig:
 class GNNExplainerAdapter(BaseExplainer):
     """
     Adapter that exposes GNNExplainer through the shared `BaseExplainer` interface
-    so it can be scheduled next to SubgraphX, TEMP-ME, etc.
+    so it can be scheduled next to TGNNExplainer, TEMP-ME, etc.
     """
 
     def __init__(self, cfg: Optional[GNNExplainerAdapterConfig] = None) -> None:

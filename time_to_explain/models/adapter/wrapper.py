@@ -6,9 +6,22 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
-from time_to_explain.data.legacy.data import BatchData, ContinuousTimeDynamicGraphDataset
-from submodules.models.tgn.tgn_utils.data_processing import Data, compute_time_statistics
-from submodules.models.tgn.tgn_utils.utils import get_neighbor_finder
+from pathlib import Path
+import sys
+
+_TEMGX_VENDOR = Path(__file__).resolve().parents[2] / "submodules" / "explainer" / "TemGX" / "link"
+if str(_TEMGX_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TEMGX_VENDOR))
+
+_TGN_VENDOR = Path(__file__).resolve().parents[2] / "submodules" / "models" / "tgn"
+if str(_TGN_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TGN_VENDOR))
+if "utils" in sys.modules:
+    del sys.modules["utils"]
+
+from temgxlib.data import BatchData, ContinuousTimeDynamicGraphDataset
+from utils.data_processing import Data, compute_time_statistics
+from utils.utils import get_neighbor_finder
 
 
 class TGNNWrapper:

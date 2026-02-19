@@ -9,7 +9,14 @@ from dataclasses import dataclass
 
 from connector import TGNNWrapper
 from constants import EXPLAINED_EVENT_MEMORY_LABEL, COL_ID
-from time_to_explain.data.legacy.data import SubgraphGenerator
+from pathlib import Path
+import sys
+
+_TEMGX_VENDOR = Path(__file__).resolve().parents[2] / "submodules" / "explainer" / "TemGX" / "link"
+if str(_TEMGX_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TEMGX_VENDOR))
+
+from temgxlib.data import SubgraphGenerator
 from time_to_explain.explainer.greedy_and_cody.selection import (SelectionPolicy, RandomSelectionPolicy, TemporalSelectionPolicy,
                             SpatioTemporalSelectionPolicy, LocalEventImpactSelectionPolicy)
 

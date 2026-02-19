@@ -1,13 +1,6 @@
 """
 Adapter that wraps TGNN backbones (TGN / TGAT) and exposes the predict_proba
 API expected by the evaluation framework and fidelity metrics.
-
-Extended to optionally support a *differentiable* soft edge mask for
-gradient-based explainers: if `edge_mask` is a torch.Tensor, the adapter
-builds a full-length mask over all historical events, injects the candidate
-mask values, multiplies the backbone's edge features by this mask, and runs
-the forward pass without `torch.no_grad()`, allowing gradients to flow back
-to the mask.
 """
 from __future__ import annotations
 
@@ -95,53 +88,6 @@ class TemporalGNNModelAdapter(ModelProtocol):
         edge_mask: Optional[Sequence[float]],
     ) -> float:
         event = self._resolve_event(target, subgraph=subgraph)
-
-        # Soft mask path: expect a torch.Tensor aligned to candidate_eidx.
-        if isinstance(edge_mask, torch.Tensor):
-            if subgraph is None or not subgraph.payload:
-                raise ValueError("Tensor edge_mask provided but subgraph payload is missing.")
-            candidate = subgraph.payload.get("candidate_eidx")
-            if candidate is None:
-                raise ValueError("Subgraph payload does not contain 'candidate_eidx'; cannot apply edge mask.")
-            if len(candidate) != len(edge_mask):
-                raise ValueError(
-                    f"Edge mask length ({len(edge_mask)}) does not match candidate_eidx length ({len(candidate)})."
-                )
-            if not hasattr(self.backbone, "edge_raw_features"):
-                raise ValueError("Backbone is missing 'edge_raw_features'; cannot apply differentiable mask.")
-
-            edge_features = getattr(self.backbone, "edge_raw_features")
-            if not isinstance(edge_features, torch.Tensor):
-                raise ValueError("'edge_raw_features' must be a torch.Tensor for differentiable masking.")
-
-            if edge_mask.ndim != 1:
-                raise ValueError("edge_mask must be 1D over candidate edges.")
-
-            soft_mask = edge_mask.to(device=self.device, dtype=edge_features.dtype)
-            num_edges, feat_dim = edge_features.shape
-
-            base = torch.ones(num_edges, device=self.device, dtype=edge_features.dtype)
-            candidate_idx = torch.as_tensor(candidate, device=self.device, dtype=torch.long)
-            candidate_idx = torch.clamp(candidate_idx.long() - 1, min=0)
-
-            full_mask = base.scatter(0, candidate_idx, soft_mask)
-            masked_edge_features = edge_features * full_mask.view(-1, 1)
-
-            src = np.asarray([event.src], dtype=np.int64)
-            dst = np.asarray([event.dst], dtype=np.int64)
-            ts = np.asarray([event.ts], dtype=np.float32)
-
-            kwargs = {"logit": self.return_logit}
-            original_feats = getattr(self.backbone, "edge_raw_features")
-            try:
-                self.backbone.edge_raw_features = masked_edge_features
-                score = self.backbone.get_prob(src, dst, ts, **kwargs)
-            finally:
-                self.backbone.edge_raw_features = original_feats
-
-            if not isinstance(score, torch.Tensor):
-                score = torch.as_tensor(score, device=self.device, dtype=edge_features.dtype)
-            return score.squeeze()
 
         edge_idx_preserve = self._build_preserve_list(edge_mask, subgraph=subgraph)
 

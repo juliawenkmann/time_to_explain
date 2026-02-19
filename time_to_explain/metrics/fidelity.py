@@ -1098,15 +1098,34 @@ def build_monotonicity(config: Mapping[str, Any] | None = None):
 # ----------------------------------------------------------------------------- #
 
 
-def _aufsc(points: Sequence[Tuple[float, float]]) -> float:
+def _aufsc(points: Sequence[Tuple[float, float]], *, max_sparsity: float = 1.0, n_grid: int = 101) -> float:
     pts = [(float(s), float(v)) for s, v in points if np.isfinite(s) and np.isfinite(v)]
-    if len(pts) < 2:
-        return float("nan")
-    pts = sorted(pts, key=lambda x: x[0])
-    area = 0.0
-    for (s0, f0), (s1, f1) in zip(pts[:-1], pts[1:]):
-        area += 0.5 * (f0 + f1) * (s1 - s0)
-    return float(area)
+    if not pts:
+        return 0.0
+
+    s = np.asarray([p[0] for p in pts], dtype=float)
+    f = np.asarray([p[1] for p in pts], dtype=float)
+    max_sparsity = float(max_sparsity)
+    if max_sparsity <= 0:
+        return 0.0
+    s = np.clip(s, 0.0, max_sparsity)
+
+    grid = np.linspace(0.0, max_sparsity, int(n_grid))
+    y = np.zeros_like(grid)
+
+    order = np.argsort(s)
+    s_sorted = s[order]
+    f_sorted = f[order]
+    prefix_sum = np.cumsum(f_sorted)
+
+    idx = 0
+    for i, t in enumerate(grid):
+        while idx < s_sorted.size and s_sorted[idx] <= t:
+            idx += 1
+        y[i] = 0.0 if idx == 0 else float(prefix_sum[idx - 1]) / float(idx)
+
+    area = float(np.trapz(y, grid))
+    return area / max_sparsity
 
 
 class TemGXFidelityMetric(BaseMetric):

@@ -3,13 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence
-
 from time_to_explain.data.validate import basic_stats
-
 from .exports import visualize_folder, visualize_to_files
-from .plots import animate_bipartite_graph, plot_bipartite_graph, plot_explain_timeline
+from .datasets import animate_bipartite_graph, plot_bipartite_graph, plot_explain_timeline
 from .utils import choose_explain_indices, infer_dataset_profile, load_dataset_bundle
-
 
 def _normalize_explain_indices(
     explain_indices: Optional[Sequence[int]], num_events: int
@@ -17,7 +14,6 @@ def _normalize_explain_indices(
     if explain_indices is None:
         return choose_explain_indices(num_events)
     return [int(idx) for idx in explain_indices]
-
 
 def visualize_dataset(
     dataset_name: str | Path,

@@ -12,7 +12,7 @@ import time_to_explain.data.synthetic_recipes  # noqa: F401
 
 from time_to_explain.core.registry import available_datasets
 from time_to_explain.core.types import DatasetBundle
-from time_to_explain.data.generate_synthetic_dataset import prepare_dataset as prepare_synthetic_dataset
+from time_to_explain.data.synthetic import prepare_dataset as prepare_synthetic_dataset
 from time_to_explain.data.io import load_processed_dataset, resolve_repo_root
 from time_to_explain.data.tgnn_setup import setup_tgnn_data
 from time_to_explain.data.validate import basic_stats
@@ -109,74 +109,33 @@ def is_synthetic_dataset(
 def ensure_ml_format(
     dataset_name: str, *, root_dir: Optional[Path] = None, verbose: bool = True
 ) -> Optional[Path]:
+    """
+    Ensure a TGAT-style processed CSV exists for `dataset_name`.
+
+    Preferred layout (current):
+        resources/datasets/processed/ml_<name>.csv
+
+    Legacy fallback:
+        resources/datasets/processed/<name>/ml_<name>.csv
+    """
     root = _resolve_root(root_dir)
     processed_root = root / "resources" / "datasets" / "processed"
-    dataset_dir = processed_root / dataset_name
-    if not dataset_dir.exists():
-        if verbose:
-            print(f"Processed folder not found for '{dataset_name}': {dataset_dir}")
-        return None
 
-    ml_csv = dataset_dir / f"ml_{dataset_name}.csv"
+    # Current (flat) layout
+    ml_csv = processed_root / f"ml_{dataset_name}.csv"
     if ml_csv.exists():
         return ml_csv
 
-    alt_csv = None
-    for pattern in (f"{dataset_name}_data.csv", "*_data.csv", "*.csv"):
-        candidates = [p for p in sorted(dataset_dir.glob(pattern)) if p.name != ml_csv.name]
-        if candidates:
-            alt_csv = candidates[0]
-            break
-
-    if alt_csv is None:
+    # Legacy (folder) layout
+    legacy = processed_root / dataset_name / f"ml_{dataset_name}.csv"
+    if legacy.exists():
         if verbose:
-            print(f"No CSV source found for {dataset_name}; cannot build ml_ files.")
-        return None
-
-    try:
-        df = pd.read_csv(alt_csv)
-    except Exception as exc:
-        if verbose:
-            print(f"Failed to read {alt_csv}: {exc}")
-        return None
-
-    rename_map = {
-        "user_id": "u",
-        "item_id": "i",
-        "timestamp": "ts",
-        "state_label": "label",
-        "event_time": "ts",
-        "event_id": "idx",
-    }
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
-
-    required = {"u", "i", "ts"}
-    if not required.issubset(df.columns):
-        if verbose:
-            print(f"Skipping {dataset_name}: columns {required} missing in {alt_csv.name}")
-        return None
-
-    if "label" not in df.columns:
-        df["label"] = 0
-
-    df = df.sort_values("ts").reset_index(drop=True)
-    if "idx" not in df.columns:
-        df["idx"] = df.index.astype(int)
-    if "e_idx" not in df.columns:
-        df["e_idx"] = df["idx"] + 1
-
-    for col in ("u", "i", "idx", "e_idx"):
-        df[col] = df[col].astype(int)
-    df["ts"] = df["ts"].astype(float)
-    df["label"] = df["label"].astype(int)
-
-    keep_cols = [c for c in ("u", "i", "ts", "label", "idx", "e_idx") if c in df.columns]
-    df[keep_cols].to_csv(ml_csv, index=False)
+            print(f"Found legacy processed CSV: {legacy}.")
+        return legacy
 
     if verbose:
-        print(f"Created {ml_csv.name} from {alt_csv.name} for visualization support.")
-
-    return ml_csv
+        print(f"Processed CSV not found for '{dataset_name}' in {processed_root}")
+    return None
 
 
 def _load_flat_processed_dataset(dataset_name: str, root: Path) -> Optional[DatasetBundle]:

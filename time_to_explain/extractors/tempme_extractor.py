@@ -1,132 +1,138 @@
-# time_to_explain/extractors/tempme_extractor.py
 from __future__ import annotations
-from typing import Any, Dict, Optional, Tuple, List
+
+from typing import Any, Dict, Optional, Tuple
+
 import numpy as np
 
-from time_to_explain.core.types import Subgraph
 from time_to_explain.core.registry import register_extractor
+from time_to_explain.core.types import Subgraph
+
+from .common import EventIndex, anchor_event_idx
 
 
+@register_extractor("tempme")
 @register_extractor("tempme_minimal")
 class TempMEExtractor:
-    """
-    Build a minimal TempME-compatible payload on the fly from events + ngh_finder.
-    This avoids reliance on TempME's precomputed HDF5 files.
+    """Build a minimal TempME-compatible payload on the fly.
 
-    Output Subgraph.payload keys:
-      - event_idx (1-based)
-      - subgraph_src/subgraph_tgt/subgraph_bgd: (node_records, eidx_records, t_records)
-      - walks_src/walks_tgt/walks_bgd: (node_idx, edge_idx, time_idx, cat_feat, extra)
-      - edge_src/edge_tgt/edge_bgd: trivial edge id arrays
-      - u/i/ts of the anchor
+    This avoids reliance on TempME's precomputed HDF5 files by generating the
+    required walk/subgraph tensors from `events` and `model.ngh_finder`.
+
+    Payload keys (both with and without the `tempme_` prefix):
+      - subgraph_src/subgraph_tgt/subgraph_bgd
+      - walks_src/walks_tgt/walks_bgd
+      - edge_src/edge_tgt/edge_bgd
+      - event_idx, u, i, ts, bgd
     """
+
     name = "tempme_minimal"
 
     def __init__(self, *, model: Any, events, num_neighbors: int = 20):
         self.model = model
-        self.events = events
-        self.num_neighbors = num_neighbors
+        self.num_neighbors = int(num_neighbors)
+        self._idx = EventIndex.from_events(events)
 
-    def extract(self, dataset: Any, anchor: Dict[str, Any], *, k_hop: int,
-                num_neighbors: int, window: Optional[Tuple[float, float]] = None) -> Subgraph:
-        eidx = anchor.get("event_idx") or anchor.get("index") or anchor.get("idx")
-        if eidx is None:
-            raise ValueError("TempMEExtractor requires anchor['event_idx'|'index'|'idx'].")
-        eidx = int(eidx)
+    def extract(
+        self,
+        dataset: Any,
+        anchor: Dict[str, Any],
+        *,
+        k_hop: int,
+        num_neighbors: int,
+        window: Optional[Tuple[float, float]] = None,
+    ) -> Subgraph:
+        del dataset, k_hop, window
 
-        row = self.events.iloc[eidx - 1]
-        u = int(row[0]); v = int(row[1]); ts = float(row[2])
+        eidx = anchor_event_idx(anchor)
+        row = self._idx.resolve_row(eidx)
+        meta = self._idx.event_meta(row)
+        u, v, ts = meta["u"], meta["i"], meta["ts"]
 
-        n_nodes = int(max(self.events.iloc[:, 0].max(), self.events.iloc[:, 1].max())) + 1
+        n_nodes = int(max(int(self._idx.src.max()), int(self._idx.dst.max()))) + 1
         bgd = v if n_nodes <= 1 else (v + 1) % n_nodes
 
-        sub_src = self._grab_subgraph([u], [ts])
-        sub_tgt = self._grab_subgraph([v], [ts])
-        sub_bgd = self._grab_subgraph([bgd], [ts])
+        sub_src = self._grab_subgraph([u], [ts], num_neighbors=num_neighbors)
+        sub_tgt = self._grab_subgraph([v], [ts], num_neighbors=num_neighbors)
+        sub_bgd = self._grab_subgraph([bgd], [ts], num_neighbors=num_neighbors)
 
         walks_src, edge_src = self._make_walk(u, v)
         walks_tgt, edge_tgt = self._make_walk(v, v)
         walks_bgd, edge_bgd = self._make_walk(bgd, v)
 
-        payload = {
-            "event_idx": eidx,
+        payload: Dict[str, Any] = {
+            "event_idx": int(eidx),
             "u": u,
             "i": v,
             "ts": ts,
-            "bgd": bgd,
-            "subgraph_src": sub_src,
-            "subgraph_tgt": sub_tgt,
-            "subgraph_bgd": sub_bgd,
-            "walks_src": walks_src,
-            "walks_tgt": walks_tgt,
-            "walks_bgd": walks_bgd,
-            "edge_src": edge_src,
-            "edge_tgt": edge_tgt,
-            "edge_bgd": edge_bgd,
-            "tempme_subgraph_src": sub_src,
-            "tempme_subgraph_tgt": sub_tgt,
-            "tempme_subgraph_bgd": sub_bgd,
-            "tempme_walks_src": walks_src,
-            "tempme_walks_tgt": walks_tgt,
-            "tempme_walks_bgd": walks_bgd,
-            "tempme_edge_src": edge_src,
-            "tempme_edge_tgt": edge_tgt,
-            "tempme_edge_bgd": edge_bgd,
+            "bgd": int(bgd),
         }
+
+        for prefix in ("", "tempme_"):
+            payload[f"{prefix}subgraph_src"] = sub_src
+            payload[f"{prefix}subgraph_tgt"] = sub_tgt
+            payload[f"{prefix}subgraph_bgd"] = sub_bgd
+            payload[f"{prefix}walks_src"] = walks_src
+            payload[f"{prefix}walks_tgt"] = walks_tgt
+            payload[f"{prefix}walks_bgd"] = walks_bgd
+            payload[f"{prefix}edge_src"] = edge_src
+            payload[f"{prefix}edge_tgt"] = edge_tgt
+            payload[f"{prefix}edge_bgd"] = edge_bgd
+
         return Subgraph(node_ids=[], edge_index=[], payload=payload)
 
-    def _grab_subgraph(self, src_idx_l, cut_time_l):
+    def _grab_subgraph(self, src_idx_l, cut_time_l, *, num_neighbors: int):
+        """Two-hop temporal neighbor expansion returned in TempME layout.
+
+        Returns: (node_records, eidx_records, t_records) where each record is a
+        list [hop1, hop2] and hop2 is flattened to shape (batch, K*K).
         """
-        2-hop neighbor expansion using model.ngh_finder, returned in TempME layout:
-        ([hop1_nodes, hop2_nodes], [hop1_eidx, hop2_eidx], [hop1_ts, hop2_ts])
-        """
-        ngh = self.model.ngh_finder
-        K = int(getattr(self.model, "num_neighbors", self.num_neighbors))
+        ngh = getattr(self.model, "ngh_finder", None)
+        if ngh is None:
+            raise ValueError("Model must expose .ngh_finder with get_temporal_neighbor().")
+
+        K = int(getattr(self.model, "num_neighbors", num_neighbors))
 
         hop1_nodes, hop1_eidx, hop1_ts = ngh.get_temporal_neighbor(src_idx_l, cut_time_l, num_neighbors=K)
         hop1_nodes = np.asarray(hop1_nodes)
         hop1_eidx = np.asarray(hop1_eidx)
         hop1_ts = np.asarray(hop1_ts)
-        if hop1_nodes.ndim > 2 and hop1_nodes.shape[1] == 1:
-            hop1_nodes = np.squeeze(hop1_nodes, axis=1)
-            hop1_eidx = np.squeeze(hop1_eidx, axis=1)
-            hop1_ts = np.squeeze(hop1_ts, axis=1)
 
-        hop1_nodes_list = hop1_nodes.flatten()
-        hop1_ts_list = hop1_ts.flatten()
-        mask = hop1_nodes_list != 0
-        hop1_nodes_list = hop1_nodes_list[mask]
-        hop1_ts_list = hop1_ts_list[mask]
+        # Some neighbor finders return (batch, 1, K)
+        if hop1_nodes.ndim == 3 and hop1_nodes.shape[1] == 1:
+            hop1_nodes = hop1_nodes[:, 0, :]
+            hop1_eidx = hop1_eidx[:, 0, :]
+            hop1_ts = hop1_ts[:, 0, :]
+
+        batch = int(hop1_nodes.shape[0]) if hop1_nodes.ndim >= 2 else 1
+
+        # hop2: query neighbors for each hop1 node and flatten to (batch, K*K)
+        hop1_nodes_list = hop1_nodes.reshape(-1)
+        hop1_ts_list = hop1_ts.reshape(-1)
+
+        def _reshape_hop2(arr: np.ndarray) -> np.ndarray:
+            if arr.ndim == 3 and arr.shape == (batch, K, K):
+                return arr.reshape(batch, K * K)
+            if arr.ndim == 2:
+                if arr.shape == (batch * K, K):
+                    return arr.reshape(batch, K * K)
+                if arr.shape == (batch, K * K):
+                    return arr
+            return np.zeros((batch, K * K), dtype=arr.dtype)
 
         if hop1_nodes_list.size == 0:
-            hop2_nodes = np.zeros_like(hop1_nodes)
-            hop2_eidx = np.zeros_like(hop1_eidx)
-            hop2_ts = np.zeros_like(hop1_ts)
+            hop2_nodes = np.zeros((batch, K * K), dtype=hop1_nodes.dtype)
+            hop2_eidx = np.zeros((batch, K * K), dtype=hop1_eidx.dtype)
+            hop2_ts = np.zeros((batch, K * K), dtype=hop1_ts.dtype)
         else:
-            hop2_nodes, hop2_eidx, hop2_ts = ngh.get_temporal_neighbor(
-                hop1_nodes_list, hop1_ts_list, num_neighbors=K
-            )
-            hop2_nodes = np.asarray(hop2_nodes)
-            hop2_eidx = np.asarray(hop2_eidx)
-            hop2_ts = np.asarray(hop2_ts)
-            try:
-                hop2_nodes = hop2_nodes.reshape(hop1_nodes.shape[0], K, K)
-                hop2_eidx = hop2_eidx.reshape(hop1_eidx.shape[0], K, K)
-                hop2_ts = hop2_ts.reshape(hop1_ts.shape[0], K, K)
-            except Exception:
-                hop2_nodes = np.zeros_like(hop1_nodes)
-                hop2_eidx = np.zeros_like(hop1_eidx)
-                hop2_ts = np.zeros_like(hop1_ts)
+            hop2_nodes, hop2_eidx, hop2_ts = ngh.get_temporal_neighbor(hop1_nodes_list, hop1_ts_list, num_neighbors=K)
+            hop2_nodes = _reshape_hop2(np.asarray(hop2_nodes))
+            hop2_eidx = _reshape_hop2(np.asarray(hop2_eidx))
+            hop2_ts = _reshape_hop2(np.asarray(hop2_ts))
 
-        node_records = [hop1_nodes, hop2_nodes]
-        eidx_records = [hop1_eidx, hop2_eidx]
-        t_records = [hop1_ts, hop2_ts]
-        return (node_records, eidx_records, t_records)
+        return ([hop1_nodes, hop2_nodes], [hop1_eidx, hop2_eidx], [hop1_ts, hop2_ts])
 
     def _make_walk(self, src_id: int, dst_id: int):
-        """
-        Minimal walk tensor: shapes [1,1,6] for node_idx, [1,1,3] for edge_idx/time_idx, [1,1,1] cat_feat, [1,1,3] extras.
-        """
+        """Minimal walk tensor matching TempME's expected shapes."""
         node_idx = np.array([[[src_id, dst_id, 0, 0, 0, 0]]], dtype=np.int64)
         edge_idx = np.zeros((1, 1, 3), dtype=np.int64)
         time_idx = np.zeros((1, 1, 3), dtype=np.float32)

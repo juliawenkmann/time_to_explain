@@ -323,6 +323,11 @@ class GradientExplainer(BaseExplainer):
                     "GradientExplainer expected a scalar score from `_forward`, "
                     f"got tensor of shape {tuple(score.shape)} instead."
                 )
+            if not score.requires_grad:
+                raise RuntimeError(
+                    "No gradients found on score – did `_forward` use the mask "
+                    "in a differentiable way?"
+                )
 
             score.backward()
 
@@ -387,6 +392,11 @@ class GradientExplainer(BaseExplainer):
                     raise RuntimeError(
                         "GradientExplainer expected a scalar score from `_forward`, "
                         f"got tensor of shape {tuple(score.shape)} instead."
+                    )
+                if not score.requires_grad:
+                    raise RuntimeError(
+                        "No gradients found on score during integrated gradients – "
+                        "did `_forward` use the mask in a differentiable way?"
                     )
 
                 score.backward()

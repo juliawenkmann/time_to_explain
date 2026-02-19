@@ -2,7 +2,14 @@ import numpy as np
 import torch
 
 
-from time_to_explain.data.legacy.data import ContinuousTimeDynamicGraphDataset
+from pathlib import Path
+import sys
+
+_TEMGX_VENDOR = Path(__file__).resolve().parents[2] / "submodules" / "explainer" / "TemGX" / "link"
+if str(_TEMGX_VENDOR) not in sys.path:
+    sys.path.insert(0, str(_TEMGX_VENDOR))
+
+from temgxlib.data import ContinuousTimeDynamicGraphDataset
 
 
 class Embedding:

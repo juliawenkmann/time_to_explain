@@ -8,8 +8,23 @@ import random
 import h5py
 import numpy as np
 import pandas as pd
+try:
+    from submodules.explainer.tempme.utils import NeighborFinder, RandEdgeSampler
+except ModuleNotFoundError:  # fallback when submodules isn't importable as a package
+    import importlib
+    import sys
+    tempme_root = Path(__file__).resolve().parents[2] / "submodules" / "explainer" / "tempme"
+    if not tempme_root.exists():
+        raise
+    if str(tempme_root) not in sys.path:
+        sys.path.insert(0, str(tempme_root))
+    # Avoid picking up a different "utils" already imported (e.g., TGN submodule).
+    if "utils" in sys.modules:
+        del sys.modules["utils"]
+    utils_mod = importlib.import_module("utils")
+    NeighborFinder = getattr(utils_mod, "NeighborFinder")  # type: ignore
+    RandEdgeSampler = getattr(utils_mod, "RandEdgeSampler")  # type: ignore
 
-from submodules.explainer.TempME.utils import NeighborFinder, RandEdgeSampler
 
 
 _DEGREE_DEFAULTS = {
