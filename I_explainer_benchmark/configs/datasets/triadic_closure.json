@@ -1,0 +1,19 @@
+{
+  "num_nodes": 90,
+  "num_motifs": 600,
+  "triad_pool_size": 30,
+  "motif_repeats": 2,
+  "noise_per_motif": 0,
+  "allow_target_reuse": true,
+  "disjoint_triads": true,
+  "node_feat_dim": 8,
+  "node_feature_mode": "zeros",
+  "edge_feat_dim": 1,
+  "edge_feature_mode": "role",
+  "dt": 1.0,
+  "seed": 0,
+  "target_label": 1,
+  "support_label": 0,
+  "noise_label": 0,
+  "bipartite": false
+}

@@ -1,0 +1,56 @@
+{
+  "source_notebook": "05_tgnnexplainer.ipynb",
+  "selection": {
+    "dataset": "simulate_v1",
+    "model": "tgn"
+  },
+  "paths": {
+    "named": {
+      "TGNN_VENDOR": "submodules/explainer/tgnnexplainer"
+    }
+  },
+  "runtime": {
+    "explain_start": 0,
+    "n_events": 30,
+    "use_navigator": true,
+    "navigator_type": "pg",
+    "pg_positive": true,
+    "run_prediction_profile": false,
+    "run_extended_metrics": false,
+    "retrain_navigator": false
+  },
+  "runtime_by_combo": {
+    "reddit:tgn": {
+      "explain_start": 50,
+      "n_events": 50,
+      "threshold_num": 20,
+      "rollout": 700,
+      "min_atoms": 100,
+      "c_puct": 4.0,
+      "train_epochs": 120,
+      "reg_coefs": [
+        0.5,
+        0.1
+      ],
+      "batch_size": 16,
+      "lr": 0.0001,
+      "use_navigator": true,
+      "navigator_type": "pg",
+      "pg_positive": true
+    },
+    "simulate_v1:tgat": {
+      "explain_start": 0,
+      "n_events": 30,
+      "use_navigator": true,
+      "navigator_type": "pg",
+      "pg_positive": true
+    },
+    "simulate_v2:tgat": {
+      "explain_start": 0,
+      "n_events": 30,
+      "use_navigator": true,
+      "navigator_type": "pg",
+      "pg_positive": true
+    }
+  }
+}

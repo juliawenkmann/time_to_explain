@@ -1,0 +1,8 @@
+*.npy
+*.npz
+*.csv
+*.pkl
+*.pth
+*.pt
+link/resources/datasets/**
+link/resources/models/**

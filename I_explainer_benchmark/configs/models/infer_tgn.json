@@ -1,0 +1,21 @@
+{
+  "model": "TGN",
+  "args": {
+    "n_layers": 2,
+    "n_heads": 2,
+    "dropout": 0.1,
+    "use_memory": false,
+    "forbidden_memory_update": false,
+    "memory_update_at_start": true,
+    "message_dimension": 100,
+    "memory_dimension": 500,
+    "embedding_module_type": "graph_attention",
+    "message_function": "mlp",
+    "n_neighbors": null,
+    "aggregator_type": "last",
+    "memory_updater_type": "gru",
+    "use_destination_embedding_in_message": false,
+    "use_source_embedding_in_message": false,
+    "dyrep": false
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "sparsity": {},
+  "fidelity_minus": {
+    "sparsity_levels": [0.0, 0.25, 0.5, 0.75, 1.0]
+  },
+  "fidelity_plus": {
+    "sparsity_levels": [0.0, 0.25, 0.5, 0.75, 1.0]
+  },
+  "aufsc": {
+    "sparsity_levels": [0.0, 0.25, 0.5, 0.75, 1.0],
+    "mode": "minus"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "source_notebook": "01_my_cf.ipynb",
+  "out_dir_name": "official_metric_optimized_cf_upper",
+  "selection": {
+    "dataset": "simulate_v1",
+    "model": "tgn"
+  },
+  "runtime": {
+    "n_eval_events": 30,
+    "candidates_size": 64,
+    "trial_configs": [
+      {
+        "name": "upper_balanced",
+        "alias": "cf_metric_opt_upper",
+        "mode": "beam",
+        "beam_width": 9,
+        "max_steps": 11,
+        "pool_size": 34,
+        "use_cody_floor": true,
+        "stop_at_first_flip": false,
+        "sparsity_penalty": 0.04,
+        "cody_seed_bonus": 0.25,
+        "progress_weight": 0.35
+      },
+      {
+        "name": "upper_bestfid_heavy",
+        "alias": "cf_metric_opt_upper",
+        "mode": "beam",
+        "beam_width": 11,
+        "max_steps": 13,
+        "pool_size": 40,
+        "use_cody_floor": true,
+        "stop_at_first_flip": false,
+        "sparsity_penalty": 0.02,
+        "cody_seed_bonus": 0.15,
+        "progress_weight": 0.25
+      },
+      {
+        "name": "upper_aufsc_heavy",
+        "alias": "cf_metric_opt_upper",
+        "mode": "beam",
+        "beam_width": 10,
+        "max_steps": 12,
+        "pool_size": 38,
+        "use_cody_floor": true,
+        "stop_at_first_flip": false,
+        "sparsity_penalty": 0.03,
+        "cody_seed_bonus": 0.2,
+        "progress_weight": 0.3
+      },
+      {
+        "name": "upper_sparse_peak",
+        "alias": "cf_metric_opt_upper",
+        "mode": "beam",
+        "beam_width": 8,
+        "max_steps": 10,
+        "pool_size": 30,
+        "use_cody_floor": true,
+        "stop_at_first_flip": true,
+        "sparsity_penalty": 0.08,
+        "cody_seed_bonus": 0.1,
+        "progress_weight": 0.55
+      }
+    ]
+  }
+}

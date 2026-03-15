@@ -1,0 +1,41 @@
+model_saving_dir: ''
+model_name: 'tgat'
+
+ckpt_path: ''
+param:
+  wikipedia:
+    num_layers: 2
+    use_time: 'time'
+    agg_method: 'attn'
+    attn_mode: 'prod'
+    num_neighbors: 10
+    num_heads: 2
+    dropout: 0.0
+    uniform_sample_ngh: False
+  reddit:
+    num_layers: 2
+    use_time: 'time'
+    agg_method: 'attn'
+    attn_mode: 'prod'
+    num_neighbors: 10
+    num_heads: 2
+    dropout: 0.0
+    uniform_sample_ngh: False
+  simulate_v1:
+    num_layers: 2
+    use_time: 'time'
+    agg_method: 'attn'
+    attn_mode: 'prod'
+    num_neighbors: 10
+    num_heads: 2
+    dropout: 0.0
+    uniform_sample_ngh: False
+  simulate_v2:
+    num_layers: 2
+    use_time: 'time'
+    agg_method: 'attn'
+    attn_mode: 'prod'
+    num_neighbors: 10
+    num_heads: 2
+    dropout: 0.0
+    uniform_sample_ngh: False

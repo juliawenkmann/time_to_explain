@@ -1,0 +1,28 @@
+{
+  "source_notebook": "06_pg.ipynb",
+  "out_dir_name": "official_pg",
+  "selection": {
+    "dataset": "simulate_v1",
+    "model": "tgn"
+  },
+  "paths": {
+    "named": {
+      "TGN_VENDOR_ROOT": "submodules/models/tgn"
+    }
+  },
+  "runtime": {
+    "n_eval_events": 30,
+    "explain_start": 0,
+    "candidates_size": 64,
+    "use_cached_pg_results": false,
+    "pg_train_epochs_default": 50,
+    "pg_train_epochs_by_dataset": {
+      "wikipedia": 100,
+      "reddit": 30,
+      "simulate_v1": 20,
+      "simulate_v2": 20,
+      "ucim": 20,
+      "ucim_motif": 20
+    }
+  }
+}

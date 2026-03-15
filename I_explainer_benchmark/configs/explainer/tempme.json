@@ -1,0 +1,11 @@
+{
+  "name": "tempme",
+  "adapter": "tempme",
+  "args": {
+    "base_type": "{model_type}",
+    "data": "{dataset_name}",
+    "train_if_missing": true,
+    "cache": true,
+    "alias": "tempme"
+  }
+}

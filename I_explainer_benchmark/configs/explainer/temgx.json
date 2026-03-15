@@ -1,0 +1,19 @@
+{
+  "name": "temgx",
+  "adapter": "temgx",
+  "args": {
+    "l_hops": 2,
+    "candidate_cap": 200,
+    "sparsity": 5,
+    "time_window": null,
+    "time_scale": null,
+    "icm_alpha": 1.0,
+    "icm_beta": 0.1,
+    "icm_lambda": 0.01,
+    "icm_gamma": 0.5,
+    "trd_scale": 1.0,
+    "use_extractor_candidates": false,
+    "cache": true,
+    "alias": "temgx"
+  }
+}

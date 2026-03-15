@@ -1,0 +1,76 @@
+# OS / editor noise
+*.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Python cache / build artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+**/*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local notebook / runtime logs
+*.log
+*.pkl
+tmp/
+**/tmp/
+**/runs/
+**/pathpyG.log
+**/.Rhistory
+
+# Part I: large local benchmark assets
+/I_explainer_benchmark/resources/
+/I_explainer_benchmark/notebooks/outputs/
+/I_explainer_benchmark/submodules/explainer/TempME/processed/
+/I_explainer_benchmark/submodules/explainer/TempME/params/
+/I_explainer_benchmark/submodules/explainer/TempME/processed_legacy_backup_*/
+/I_explainer_benchmark/submodules/explainer/TempME/params_legacy_backup_*/
+/I_explainer_benchmark/submodules/explainer/params/
+/I_explainer_benchmark/submodules/explainer/TemGX/link/resources/
+/I_explainer_benchmark/submodules/explainer/TemGX/link/submodules/tgn/TGN/figures/
+/I_explainer_benchmark/submodules/explainer/TemGX/link/submodules/ttgn/TTGN/figures/
+/I_explainer_benchmark/submodules/explainer/htgexplainer/HTGNN/*.pt
+/I_explainer_benchmark/submodules/explainer/htgexplainer/*.png
+/I_explainer_benchmark/submodules/explainer/tgnnexplainer/*.pdf
+/I_explainer_benchmark/submodules/explainer/tgnnexplainer/notebooks/
+/I_explainer_benchmark/submodules/explainer/tgnnexplainer/tgnnexplainer/xgraph/dataset/data/
+/I_explainer_benchmark/submodules/explainer/tgnnexplainer/tgnnexplainer/xgraph/models/ext/tgn/figures/
+/I_explainer_benchmark/submodules/explainer/tgnnexplainer/tgnnexplainer/xgraph/models/ext/tgat/architecture.png
+/I_explainer_benchmark/submodules/models/tgn/figures/
+/I_explainer_benchmark/submodules/models/tgn/processed/
+/I_explainer_benchmark/submodules/models/tgn/data/
+/I_explainer_benchmark/submodules/models/tgat/architecture.png
+/I_explainer_benchmark/out/
+/I_explainer_benchmark/paper/*.pdf
+
+# Part II: generated figures
+/II_instability_sources/figures/
+
+# Part III: runs, plots, and local notebook data
+/III_dbgnn_behavior/runs/
+/III_dbgnn_behavior/plots/
+/III_dbgnn_behavior/notebooks/runs/
+/III_dbgnn_behavior/notebooks/legacy/
+/III_dbgnn_behavior/notebooks/legacy/runs/
+/III_dbgnn_behavior/notebooks/legacy/plots/
+/III_dbgnn_behavior/notebooks/plots/
+/III_dbgnn_behavior/notebooks/data/
+/III_dbgnn_behavior/tmp/
+/III_dbgnn_behavior/src.zip
+
+# Part IV: local data and generated outputs
+/IV_cbm_implementation/data/
+/IV_cbm_implementation/figures/
+/IV_cbm_implementation/plots/
+/IV_cbm_implementation/notebooks/figures/
+/IV_cbm_implementation/tmp/

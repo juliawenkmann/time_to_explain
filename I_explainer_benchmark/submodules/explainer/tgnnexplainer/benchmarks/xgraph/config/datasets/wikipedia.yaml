@@ -1,0 +1,4 @@
+dataset_name: 'wikipedia'
+dataset_path: ''
+explain_idx_filepath: ''
+explain_idx_filename: 'wikipedia'

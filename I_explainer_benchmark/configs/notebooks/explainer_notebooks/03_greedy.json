@@ -1,0 +1,31 @@
+{
+  "source_notebook": "03_greedy.ipynb",
+  "selection": {
+    "dataset": "simulate_v1",
+    "model": "tgn"
+  },
+  "paths": {
+    "named": {
+      "CODY_ROOT": "submodules/explainer/CoDy",
+      "TEMGX_LINK": "submodules/explainer/TemGX/link"
+    }
+  },
+  "runtime": {
+    "selection_policy": "local-gradient",
+    "candidates_size": 64,
+    "sample_size": 10,
+    "approximate_predictions": true,
+    "n_eval_events": 30,
+    "explain_start": 0,
+    "paper_reddit_tgn_event_protocol": false,
+    "paper_reddit_logit_min": 0.2,
+    "paper_reddit_train_start": 0.2,
+    "paper_reddit_train_end": 0.6
+  },
+  "runtime_by_combo": {
+    "reddit:tgn": {
+      "n_eval_events": 200,
+      "paper_reddit_tgn_event_protocol": true
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "metrics_stamp": ".metrics_recomputed_v6",
+  "cody_metric_cols": [
+    "cody_AUFSC_plus",
+    "cody_AUFSC_minus",
+    "cody_CHARR"
+  ],
+  "cody_inference": {
+    "score_is_logit": true,
+    "decision_threshold": 0.0,
+    "max_sparsity": 1.0,
+    "n_grid": 101,
+    "allow_model_inference": true,
+    "fidelity_mode": "score",
+    "charr_mode": "score"
+  },
+  "clip_non_negative_cols": [],
+  "default_metrics_to_plot": [
+    "fidelity_minus.value",
+    "fidelity_plus.value",
+    "best_fid.value",
+    "tgnn_aufsc.value",
+    "temgx_aufsc.value",
+    "sparsity.ratio",
+    "tempme_acc_auc.ratio_acc",
+    "cody_AUFSC_plus",
+    "cody_AUFSC_minus",
+    "cody_CHARR",
+    "elapsed_sec",
+    "acc_auc.auc",
+    "fidelity_minus.at_10pct",
+    "fidelity_minus.at_20pct",
+    "fidelity_plus.at_20pct",
+    "fidelity_minus.at_10pct.lift_vs_random",
+    "fidelity_minus.at_20pct.lift_vs_random",
+    "fidelity_plus.at_20pct.lift_vs_random",
+    "acc_auc.auc.lift_vs_random"
+  ],
+  "excluded_plot_metrics": [
+    "aufsc.value",
+    "best_fid.best",
+    "tgnn_aufsc.best_fid",
+    "temgx_aufsc.aufsc",
+    "fidelity_best.best",
+    "monotonicity.spearman_rho",
+    "perturbation_robustness.value",
+    "seed_stability.value"
+  ],
+  "context_cols": [
+    "anchor_idx",
+    "explainer",
+    "run_id",
+    "elapsed_sec"
+  ],
+  "random_baseline_lower_is_better": [
+    "elapsed_sec"
+  ],
+  "plot_source_order": [
+    "tgnnexplainer",
+    "tempme",
+    "cody",
+    "temgx"
+  ]
+}

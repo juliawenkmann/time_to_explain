@@ -1,0 +1,15 @@
+{
+  "source_notebook": "09_random.ipynb",
+  "out_dir_name": "official_random",
+  "selection": {
+    "dataset": "simulate_v1",
+    "model": "tgn"
+  },
+  "runtime": {
+    "n_eval_events": 30,
+    "target_event_ids": [],
+    "run_label": "",
+    "candidates_size": 64,
+    "use_cached_random_results": false
+  }
+}

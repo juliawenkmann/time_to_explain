@@ -1,0 +1,13 @@
+{
+  "source_notebook": "04_temgx.ipynb",
+  "out_dir_name": "official_temgx",
+  "selection": {
+    "dataset": "simulate_v1",
+    "model": "tgn"
+  },
+  "runtime": {
+    "n_eval_events": 100,
+    "candidates_size": 64,
+    "use_cached_temgx_results": true
+  }
+}

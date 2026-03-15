@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gnnbench"
+version = "0.1.0"
+description = "Minimal explainer benchmark harness for DBGNN (extracted from dbgnn.ipynb)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+
+dependencies = [
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "matplotlib",
+  "torch",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.optional-dependencies]
+dbgnn = [
+  "torch_geometric",
+  "pathpyG @ git+https://github.com/pathpy/pathpyG.git",
+]
+
+viz = [
+  "plotly",
+  "kaleido",
+]

@@ -1,0 +1,11 @@
+numpy
+scipy
+pandas
+networkx
+scikit-learn
+matplotlib
+torch
+torch-geometric
+pathpyG
+node2vec
+jupyterlab

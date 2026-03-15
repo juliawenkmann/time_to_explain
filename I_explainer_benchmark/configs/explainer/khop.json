@@ -1,0 +1,10 @@
+{
+  "name": "khop",
+  "adapter": "khop",
+  "args": {
+    "alias": "khop",
+    "directed": false,
+    "score_mode": "reciprocal",
+    "fallback_hop_penalty": 1
+  }
+}

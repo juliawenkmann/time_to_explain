@@ -1,0 +1,314 @@
+[
+  {
+    "source": "CoDy Table 1 (Wiki/TGN incorrect)",
+    "metric": "cody_AUFSC_minus",
+    "explainer": "cody",
+    "goal": 0.85
+  },
+  {
+    "source": "CoDy Table 1 (Wiki/TGN incorrect)",
+    "metric": "cody_AUFSC_plus",
+    "explainer": "cody",
+    "goal": 0.52
+  },
+  {
+    "source": "CoDy Table 1 (Wiki/TGN incorrect)",
+    "metric": "cody_CHARR",
+    "explainer": "cody",
+    "goal": 0.68
+  },
+  {
+    "source": "Internal baseline target",
+    "metric": "best_fid.value",
+    "explainer": "random",
+    "goal": 0.5
+  },
+  {
+    "source": "Internal baseline target",
+    "metric": "elapsed_sec",
+    "explainer": "random",
+    "goal": 1.0
+  },
+  {
+    "source": "Internal baseline target",
+    "metric": "temgx_aufsc.value",
+    "explainer": "random",
+    "goal": 0.05
+  },
+  {
+    "source": "Internal baseline target",
+    "metric": "tgnn_aufsc.value",
+    "explainer": "random",
+    "goal": 0.05
+  },
+  {
+    "source": "TGNNExplainer Table 1 (Wiki/TGN)",
+    "metric": "best_fid.value",
+    "explainer": "attn",
+    "goal": 0.479
+  },
+  {
+    "source": "TGNNExplainer Table 1 (Wiki/TGN)",
+    "metric": "best_fid.value",
+    "explainer": "perturb_one",
+    "goal": 0.296
+  },
+  {
+    "source": "TGNNExplainer Table 1 (Wiki/TGN)",
+    "metric": "best_fid.value",
+    "explainer": "pg",
+    "goal": 0.464
+  },
+  {
+    "source": "TGNNExplainer Table 1 (Wiki/TGN)",
+    "metric": "best_fid.value",
+    "explainer": "tgnnexplainer",
+    "goal": 0.866
+  },
+  {
+    "source": "TGNNExplainer Table 1 (Wiki/TGN)",
+    "metric": "tgnn_aufsc.value",
+    "explainer": "attn",
+    "goal": 0.073
+  },
+  {
+    "source": "TGNNExplainer Table 1 (Wiki/TGN)",
+    "metric": "tgnn_aufsc.value",
+    "explainer": "perturb_one",
+    "goal": -0.601
+  },
+  {
+    "source": "TGNNExplainer Table 1 (Wiki/TGN)",
+    "metric": "tgnn_aufsc.value",
+    "explainer": "pg",
+    "goal": -0.231
+  },
+  {
+    "source": "TGNNExplainer Table 1 (Wiki/TGN)",
+    "metric": "tgnn_aufsc.value",
+    "explainer": "tgnnexplainer",
+    "goal": 0.59
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "elapsed_sec",
+    "explainer": "cody",
+    "goal": 125.0
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "elapsed_sec",
+    "explainer": "temgx",
+    "goal": 12.5
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "elapsed_sec",
+    "explainer": "tempme",
+    "goal": 72.8
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "elapsed_sec",
+    "explainer": "tempme_official",
+    "goal": 72.8
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "elapsed_sec",
+    "explainer": "tgnnexplainer",
+    "goal": 65.2
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "temgx_aufsc.value",
+    "explainer": "cody",
+    "goal": 0.2
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "temgx_aufsc.value",
+    "explainer": "temgx",
+    "goal": 0.266
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "temgx_aufsc.value",
+    "explainer": "tempme",
+    "goal": 0.128
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "temgx_aufsc.value",
+    "explainer": "tempme_official",
+    "goal": 0.128
+  },
+  {
+    "source": "TemGX Table 1 (Wiki/TGN)",
+    "metric": "temgx_aufsc.value",
+    "explainer": "tgnnexplainer",
+    "goal": 0.098
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGN)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "random",
+    "goal": 0.919
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGN)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "attn",
+    "goal": 0.9328
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGN)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "grad",
+    "goal": 0.9346
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGN)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "pg",
+    "goal": 0.9428
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGN)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tempme",
+    "goal": 0.958
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGN)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tempme_official",
+    "goal": 0.958
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGN)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tgnnexplainer",
+    "goal": 0.9351
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGAT)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "random",
+    "goal": 0.7091
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGAT)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "attn",
+    "goal": 0.7731
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGAT)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "grad",
+    "goal": 0.8311
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGAT)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "pg",
+    "goal": 0.8426
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGAT)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tgnnexplainer",
+    "goal": 0.8574
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGAT)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tempme",
+    "goal": 0.8581
+  },
+  {
+    "source": "TempME Table 1 (Wiki/TGAT)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tempme_official",
+    "goal": 0.8581
+  },
+  {
+    "source": "TempME Table 1 (Wiki/GraphMixer)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "random",
+    "goal": 0.7731
+  },
+  {
+    "source": "TempME Table 1 (Wiki/GraphMixer)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "grad",
+    "goal": 0.7663
+  },
+  {
+    "source": "TempME Table 1 (Wiki/GraphMixer)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "pg",
+    "goal": 0.8519
+  },
+  {
+    "source": "TempME Table 1 (Wiki/GraphMixer)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tgnnexplainer",
+    "goal": 0.8769
+  },
+  {
+    "source": "TempME Table 1 (Wiki/GraphMixer)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tempme",
+    "goal": 0.9015
+  },
+  {
+    "source": "TempME Table 1 (Wiki/GraphMixer)",
+    "metric": "tempme_acc_auc.ratio_acc",
+    "explainer": "tempme_official",
+    "goal": 0.9015
+  },
+  {
+    "source": "TempME Table 3 (Wiki/TGAT)",
+    "metric": "elapsed_sec",
+    "explainer": "random",
+    "goal": 0.02
+  },
+  {
+    "source": "TempME Table 3 (Wiki/TGAT)",
+    "metric": "elapsed_sec",
+    "explainer": "attn",
+    "goal": 0.02
+  },
+  {
+    "source": "TempME Table 3 (Wiki/TGAT)",
+    "metric": "elapsed_sec",
+    "explainer": "grad",
+    "goal": 0.03
+  },
+  {
+    "source": "TempME Table 3 (Wiki/TGAT)",
+    "metric": "elapsed_sec",
+    "explainer": "pg",
+    "goal": 0.08
+  },
+  {
+    "source": "TempME Table 3 (Wiki/TGAT)",
+    "metric": "elapsed_sec",
+    "explainer": "tgnnexplainer",
+    "goal": 26.87
+  },
+  {
+    "source": "TempME Table 3 (Wiki/TGAT)",
+    "metric": "elapsed_sec",
+    "explainer": "tempme",
+    "goal": 0.13
+  },
+  {
+    "source": "TempME Table 3 (Wiki/TGAT)",
+    "metric": "elapsed_sec",
+    "explainer": "tempme_official",
+    "goal": 0.13
+  }
+]

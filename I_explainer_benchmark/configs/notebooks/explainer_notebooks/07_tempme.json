@@ -1,0 +1,58 @@
+{
+  "source_notebook": "07_tempme.ipynb",
+  "out_dir_name": "official_tempme",
+  "selection": {
+    "dataset": "simulate_v1",
+    "model": "tgn"
+  },
+  "paths": {
+    "named": {
+      "TEMP_ME_ROOT": "submodules/explainer/TempME"
+    }
+  },
+  "runtime": {
+    "supported_base_types": [
+      "tgn",
+      "tgat"
+    ],
+    "quick_run": false,
+    "force_rerun_base": false,
+    "force_rerun_explainer": false,
+    "tempme_test_threshold": null,
+    "expected_tgat_layers": 2,
+    "base_overrides_quick": {
+      "n_epoch": 1,
+      "bs": 4096
+    },
+    "explainer_overrides_quick": {
+      "n_epoch": 1,
+      "bs": 2048,
+      "test_bs": 2048,
+      "verbose": 1
+    },
+    "base_overrides_full": {
+      "n_epoch": 1,
+      "bs": 2048
+    },
+    "explainer_overrides_full": {
+      "n_epoch": 1,
+      "bs": 1024,
+      "test_bs": 1024,
+      "verbose": 1
+    },
+    "n_eval_events": 10,
+    "candidates_size": 40,
+    "use_cached_tempme_results": true,
+    "tempme_degree_by_dataset": {
+      "wikipedia": 20,
+      "reddit": 20,
+      "simulate_v1": 20,
+      "simulate_v2": 20,
+      "uci": 30,
+      "ucim": 30,
+      "ucim_motif": 30,
+      "uci_motif": 30,
+      "uci-motif": 30
+    }
+  }
+}

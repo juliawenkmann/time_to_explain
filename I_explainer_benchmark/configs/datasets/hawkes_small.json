@@ -1,0 +1,44 @@
+{
+  "dim": 50,
+  "horizon": 10.0,
+  "baseline": [
+    0.1,
+    0.1,
+    0.2,
+    0.1
+  ],
+  "adjacency": [
+    [
+      0.0,
+      0.2,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.1,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.5
+    ],
+    [
+      0.05,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "decays": 1.5,
+  "type_edge_mapping": "cycle",
+  "target_type": 3,
+  "baseline_scale": 3.0,
+  "num_nodes": 50,
+  "node_feat_dim": 6,
+  "bipartite": false,
+  "seed": 13
+}

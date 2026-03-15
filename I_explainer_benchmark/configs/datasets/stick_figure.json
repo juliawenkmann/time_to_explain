@@ -1,0 +1,18 @@
+{
+  "num_clips": 800,
+  "frames": 30,
+  "dt": 1.0,
+  "edge_feat_dim": 9,
+  "node_feat_dim": 8,
+  "node_feature_mode": "zeros",
+  "wave_freq": 1.0,
+  "wave_amp": 0.35,
+  "jitter": 0.01,
+  "contact_stride": 4,
+  "contact_dist": 0.15,
+  "seed": 0,
+  "target_label": 1,
+  "support_label": 0,
+  "explain_last_k_frames": 5,
+  "bipartite": false
+}

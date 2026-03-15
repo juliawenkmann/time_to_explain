@@ -1,0 +1,9 @@
+{
+  "name": "random",
+  "adapter": "random",
+  "args": {
+    "alias": "random",
+    "seed": null,
+    "reseed_each_call": true
+  }
+}

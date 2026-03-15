@@ -1,0 +1,19 @@
+{
+  "source_notebook": "08_khop.ipynb",
+  "out_dir_name": "official_khop",
+  "selection": {
+    "dataset": "simulate_v1",
+    "model": "tgn"
+  },
+  "paths": {
+    "named": {
+      "TGN_VENDOR_ROOT": "submodules/models/tgn"
+    }
+  },
+  "runtime": {
+    "n_eval_events": 30,
+    "explain_start": 0,
+    "candidates_size": 64,
+    "use_cached_khop_results": true
+  }
+}

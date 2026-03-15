@@ -1,0 +1,33 @@
+model_saving_dir: ''
+model_name: 'tgn'
+
+ckpt_path: ''
+param:
+  wikipedia:
+    num_layers: 2
+    num_heads: 2
+    dropout: 0.0
+    num_neighbors: 10
+    message_dimension: 100
+    memory_dimension: 172
+  reddit:
+    num_layers: 2
+    num_heads: 2
+    dropout: 0.0
+    num_neighbors: 10
+    message_dimension: 100
+    memory_dimension: 172
+  simulate_v1:
+    num_layers: 2
+    num_heads: 2
+    dropout: 0.0
+    num_neighbors: 10
+    message_dimension: 100
+    memory_dimension: 4
+  simulate_v2:
+    num_layers: 2
+    num_heads: 2
+    dropout: 0.0
+    num_neighbors: 10
+    message_dimension: 100
+    memory_dimension: 4
