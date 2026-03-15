@@ -1,4 +1,4 @@
-# time_to_explain_official
+# time_to_explain
 
 This repository is the working thesis workspace. It is split into four main
 parts that can be run independently:
@@ -215,16 +215,3 @@ If you are working across the full thesis repo, the cleanest order is:
 3. Run Part II for the instability figures.
 4. Run Part III for DBGNN-specific analysis.
 5. Run Part IV for the CBM workflow.
-
-## Large Files And Git
-
-Large local artifacts are intentionally not part of the clean source snapshot.
-The root `.gitignore` excludes:
-
-- `I_explainer_benchmark/resources/`
-- large local data folders
-- generated run/plot/figure directories
-- notebook temp/cache files
-
-That means the source code, configs, notebooks, and lightweight metadata stay
-versioned, while heavy experimental outputs remain local.
